@@ -1,0 +1,7 @@
+*__pycache__/
+*.ipynb_checkpoints/
+snp/
+start/
+new file
+pretrain.ipynb
+Pruning2.yaml

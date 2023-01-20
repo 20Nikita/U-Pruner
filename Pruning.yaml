@@ -1,0 +1,59 @@
+####################### PRUNING SETTINGS ############################
+path:
+    exp_save: /workspace/snp           # Путь к каталогу для сохранения промежуточных результатов, мусора, хэша
+    model_name: elbrus_chest_mbnet    # Название эксперимента
+
+#====================== MODEL ==================================|
+model:
+    path_to_interface: /workspace/proj/shared/results # Путь к каталогу с interface.pt
+    size: [640,480]
+    
+#====================== DATASET ================================|
+dataset:
+    num_classes: 4
+#    annotation_path: ../../db_labs/paradigma/chest_xray/dataset_chest_xray_640_480/
+    annotation_path: /workspace/proj/dataset
+    dataLoader:
+        batch_size_t: 20
+        num_workers_t: 2
+        pin_memory_t: True
+        drop_last_t: True
+        shuffle_t: True
+
+        batch_size_v: 20
+        num_workers_v: 2
+        pin_memory_v: True
+        drop_last_v: True
+        shuffle_v: False
+#===================== RETRAINING ==============================|
+# Параметры дообучения сети после обрезки. 
+# Вызывается количество_итераций_обрезки * Количество_блоков_сети раз
+retraining:
+    num_epochs: 1
+    lr: 0.00001
+
+#====================== TRAINING ===============================|
+# Полноценное обучение (дообучение) после обрезки. 
+# Вызывается 1 раз в конце работы алгоритма
+training:
+    num_epochs: 10
+    lr: 0.00001
+
+#===================== MY_PRUNING ==============================|
+my_pruning:
+    alf: 32                       # Сохоанить кратность первых двух коналов конволюции числу alf (33*65*7*7)->(32*64*7*7)
+    P: 0.8                        # Сколько отрезать от сети (Пока основывается на ptflops.get_model_complexity_info)
+    cart: [2,3,2,3,2,3]                   # На каких картах обучать [0,0,1,1,1,2] (для паралельного обучения, запустится 6 независимых тренировок на соответствующих картах)
+    iskl: []                      # Название слоёв, которые не нужно обрезать [input_stem.0.conv,blocks.1.conv2.conv]
+    algoritm: L2Norm              # TaylorFOWeight, L2Norm. Прунинг в основе.TaylorFOWeight в 2 раза дольще L2Norm но немного лучше.
+    resize_alf: False             # Обрезать всю сеть до кратности alf (Если False то могут остатся не кратные свертки при условии что их обрезка сильно портит качество)
+    delta_crop: 0.1               # Сколько % от текущей свертки резать за 1 итерацию 0.1->(100*100*7*7)->(90->100*7*7)
+#======================= RESTART ===============================|
+restart:
+    start_iteration: 0                                     # Итерация с которой продолжить работу (default: 0)
+    load: /workspace/snp/elbrus_chest_mbnet/orig_model.pth  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth")
+#    load: /workspace/prj/Pruning/snp/pretrain/nm6408_chest_mbnet_acc_14-0.8863_loss-0.2992.pth  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth"
+    
+#========================== SPID ===============================|
+spid:
+    is_spid_crop: False
