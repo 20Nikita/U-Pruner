@@ -3,8 +3,8 @@ import torch
 import copy
 
 from interfaces.tools import *
-import my_pruning
-from my_pruning_pabotnik import get_size
+import cod.my_pruning as my_pruning
+from cod.my_pruning_pabotnik import get_size
 
 config = yaml.safe_load(open('Pruning.yaml'))
 

@@ -1,24 +1,25 @@
-import yaml
-import torch
-import torch.optim as optim
-import os
-import time 
-import copy 
 import subprocess
-from multiprocessing import Process
-
-import cod.trainer as trainer
-from my_pruning_pabotnik import get_size, get_stract
+from interfaces.tools import *
 
 def potok(self_ind,cuda,load,name_sloi,sparsity,orig_size,iterr,algoritm):
 #     print(self_ind, name_sloi) 
-    return subprocess.call(['python3 my_pruning_pabotnik.py --self_ind {}\
+    return subprocess.call(['python3 cod/my_pruning_pabotnik.py --self_ind {}\
     --cuda {} --load {} --name_sloi {} --sparsity {} --orig_size {} --iterr {} --algoritm {}\
     '.format(self_ind,cuda,load,name_sloi,sparsity,orig_size,iterr,algoritm)], shell=True)
 
 def my_pruning(start_size_model):
-    
+    import os
+    import yaml
     config = yaml.safe_load(open('Pruning.yaml'))
+    os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config['my_pruning']['cart'][0])
+    import torch
+    import torch.optim as optim
+    import time 
+    import copy 
+    from multiprocessing import Process
+
+    import cod.training as trainer
+    from cod.my_pruning_pabotnik import get_size, get_stract, rename
     
     lr_training     = config['training']['lr']
     N_it_ob       = config['training']['num_epochs']
@@ -89,11 +90,14 @@ def my_pruning(start_size_model):
             
         
     it = start_iteration
-    while start_size_model * (1-P) < get_size(copy.deepcopy(model)):
-        print(start_size_model, get_size(copy.deepcopy(model)), start_size_model * (1-P))
+    stract = get_stract(model)
+    size_model = get_size(model)
+    del model
+    while start_size_model * (1-P) < size_model:
+        print(start_size_model, size_model, start_size_model * (1-P))
         parametri = []
         ind = 0
-        for name in get_stract(model):
+        for name in stract:
             if name[1]=='torch.nn.modules.conv.Conv2d' and  len(name[0].split(".bias")) == 1:
                 add = True
                 for isk in iskl:
@@ -161,15 +165,17 @@ def my_pruning(start_size_model):
             
                     model = torch.load(load)
                     optimizer = optim.Adam(model.parameters(), lr=lr_training)
+                    size_model = get_size(copy.deepcopy(model))
                     model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
-                    load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,get_size(copy.deepcopy(model))/start_size_model)
+                    load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
                     torch.save(model,load)
+                    del model
                 for filename in os.listdir(snp):
                     if filename.split(".")[-1] == "pth":
                         if len(filename.split("size")) == 1 and filename != "orig_model.pth":
                             os.remove(snp + "/" + filename)
                 f = open(exp_save + "/" + modelName + "_log.txt", "a")
-                f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,sloi,do,posle,maxx,get_size(copy.deepcopy(model))/start_size_model))
+                f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,sloi,do,posle,maxx,size_model/start_size_model))
                 f.close()
                 it = it + 1
                 time_elapsed = time.time() - since3
@@ -201,9 +207,14 @@ def my_pruning(start_size_model):
             
             model = torch.load(load)
             optimizer = optim.Adam(model.parameters(), lr=lr_training)
+            size_model = get_size(copy.deepcopy(model))
             model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
-            load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,get_size(copy.deepcopy(model))/start_size_model)
+            load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
             torch.save(model,load)
+            del model
+            f = open(exp_save + "/" + modelName + "_log.txt", "a")
+            f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,sloi,do,posle,acc,size_model/start_size_model))
+            f.close()
             for filename in os.listdir(snp):
                 if filename.split(".")[-1] == "pth":
                     if len(filename.split("size")) == 1 and filename != "orig_model.pth":
@@ -211,12 +222,32 @@ def my_pruning(start_size_model):
                 if filename.split(".")[-1] == "txt":
                     if len(filename.split("train_log")) == 2:
                         os.remove(snp + "/" + filename)
-            f = open(exp_save + "/" + modelName + "_log.txt", "a")
-            f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,sloi,do,posle,maxx,get_size(copy.deepcopy(model))/start_size_model))
-            f.close()
             it = it + 1
             time_elapsed = time.time() - since3
             print("time_epox= {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
     time_elapsed = time.time() - since
     print("time_total= {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
-    print(start_size_model, get_size(copy.deepcopy(model)), start_size_model * (1-P))
+    print(start_size_model, size_model, start_size_model * (1-P))
+    
+    # Сохранение в интерфейс
+    interface = load_interface(path_to_interface = config['model']['path_to_interface'])
+    interface['pruning'] = {}
+    interface['pruning']['summary'] = {}
+    model_orig = build_net(interface=interface)
+    _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = open(config['path']['exp_save']+"/"+config['path']['model_name']+"_log.txt").readlines()[-1].split(" ")
+    model_prun = torch.load(f"{config['path']['exp_save']}/{config['path']['model_name']}/{config['path']['model_name']}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth")
+    stract1 = get_stract(model_orig)
+    stract2 = get_stract(model_prun)
+    resize = []
+    for i in range(len(stract1)):
+        if stract1[i][2]!=stract2[i][2]:
+            resize.append({ "name": rename(stract1[i][0]), "type": stract1[i][1], "orig_shape": stract1[i][2],"shape": stract2[i][2]})
+    summary = {
+            'size': size,
+            'val_accuracy': acc,
+            'resize': resize,
+            'time': [time_elapsed // 60 // 60, time_elapsed // 60 - time_elapsed // 60 // 60 * 60, time_elapsed % 60]
+    }
+    params = model_prun.state_dict()
+    component = 'pruning'
+    save_interface(interface=interface, name_component=component, params=params, summary=summary)

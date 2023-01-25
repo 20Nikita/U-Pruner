@@ -2,6 +2,7 @@ import argparse
 import torch
 import os
 from ptflops import get_model_complexity_info
+import yaml
 #Ïîëó÷èòü äàííûå îá îáó÷àåìûõ ïàðàìåòðàõ ñåòè
 def get_stract(model):
     stact = []
@@ -34,7 +35,9 @@ def get_stract(model):
 
 # Ïîëó÷èòü ñóìàðíîå êîëè÷åñòâî ñòðîê â óîíâàëþöèîííîé ìàòðèöå. Ìåðà ðàçìåðà ñåòè
 def get_size(model):
-    macs, params = get_model_complexity_info(model, (3, 224, 224), as_strings=False, print_per_layer_stat=False, verbose=False)
+    config = yaml.safe_load(open('/workspace/proj/Pruning.yaml'))
+    shape = config['model']['size']
+    macs, params = get_model_complexity_info(model, (3, shape[0], shape[1]), as_strings=False, print_per_layer_stat=False, verbose=False)
     return params
     #N = 0
     #for name in get_stract(model):
@@ -355,7 +358,7 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
     import yaml
     import torch.optim as optim
     config = yaml.safe_load(open('Pruning.yaml'))
-    import cod.trainer as trainer
+    import retraining as trainer
     
     alf        = config['my_pruning']['alf']
     lr         = config['retraining']['lr']
@@ -412,8 +415,7 @@ def main(param):
     from nni.algorithms.compression.v2.pytorch.pruning import TaylorFOWeightPruner
     from nni.algorithms.compression.v2.pytorch.pruning import L2NormPruner
     from nni.compression.pytorch import ModelSpeedup
-    import yaml
-    import cod.trainer as trainer
+    import retraining as trainer
     # Ïàðàìåòðû ïðóíèíãà nni
     config_list = [{'sparsity': param.sparsity, 
                 'op_types': ['Conv2d'],

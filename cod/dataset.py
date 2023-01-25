@@ -2,9 +2,11 @@ from torch.utils.data import Dataset
 from PIL import Image
 import os
 import csv
+import yaml
 
 from torchvision import transforms
 
+config = yaml.safe_load(open('/workspace/proj/Pruning.yaml'))
 
 class GenericDataset(Dataset):
     def __init__(self, filefolder, transform):
@@ -85,15 +87,10 @@ def create_folders(annotation_path):
     return trainfolder, valfolder
 
 
-resize_shape = [480,640] #[549,731]
-resize_shape = [640,480]
-resize_shape = [224,224]
-crop_shape = [640,480]
-crop_shape = [224,224]
-# crop_shape = [480,640]
+crop_shape = config['model']['size']
+resize_shape = [int(crop_shape[0]*1.1),int(crop_shape[1]*1.1)]
 
-
-default_val_transform = transforms.Compose([
+default_train_transform = transforms.Compose([
             transforms.Resize(resize_shape),
             transforms.RandomResizedCrop(crop_shape, scale=(0.25, 1)),
             transforms.RandomHorizontalFlip(),
@@ -101,7 +98,7 @@ default_val_transform = transforms.Compose([
             transforms.Normalize([0.485, 0.456, 0.406], [0.229, 0.224, 0.225])
         ])
 
-default_train_transform = transforms.Compose([
+default_val_transform = transforms.Compose([
             transforms.Resize(resize_shape),
             transforms.CenterCrop(crop_shape),
             transforms.ToTensor(),
