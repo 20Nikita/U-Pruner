@@ -233,6 +233,7 @@ def my_pruning(start_size_model):
     interface = load_interface(path_to_interface = config['model']['path_to_interface'])
     interface['pruning'] = {}
     interface['pruning']['summary'] = {}
+    interface['pruning']['is_pruning'] = True
     model_orig = build_net(interface=interface)
     _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = open(config['path']['exp_save']+"/"+config['path']['model_name']+"_log.txt").readlines()[-1].split(" ")
     model_prun = torch.load(f"{config['path']['exp_save']}/{config['path']['model_name']}/{config['path']['model_name']}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth")
