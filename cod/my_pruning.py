@@ -244,10 +244,10 @@ def my_pruning(start_size_model):
         if stract1[i][2]!=stract2[i][2]:
             resize.append({ "name": rename(stract1[i][0]), "type": stract1[i][1], "orig_shape": stract1[i][2],"shape": stract2[i][2]})
     summary = {
-            'size': size,
-            'val_accuracy': acc,
+            'size': float(size),
+            'val_accuracy': float(acc),
             'resize': resize,
-            'time': [time_elapsed // 60 // 60, time_elapsed // 60 - time_elapsed // 60 // 60 * 60, time_elapsed % 60]
+            'time': "{:.0f}h {:.0f}m {:.0f}s".format(time_elapsed // 60 // 60, time_elapsed // 60 - time_elapsed // 60 // 60 * 60, time_elapsed % 60)
     }
     params = model_prun.state_dict()
     component = 'pruning'
