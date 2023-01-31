@@ -22,7 +22,7 @@ def my_pruning(start_size_model):
     from cod.my_pruning_pabotnik import get_size, get_stract, rename
     
     lr_training     = config['training']['lr']
-    N_it_ob       = config['training']['num_epochs']
+    N_it_ob         = config['training']['num_epochs']
     
     load            = config['restart']['load']
     alf             = config['my_pruning']['alf']
@@ -228,27 +228,3 @@ def my_pruning(start_size_model):
     time_elapsed = time.time() - since
     print("time_total= {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
     print(start_size_model, size_model, start_size_model * (1-P))
-    
-    # Сохранение в интерфейс
-    interface = load_interface(path_to_interface = config['model']['path_to_interface'])
-    interface['pruning'] = {}
-    interface['pruning']['summary'] = {}
-    interface['pruning']['is_pruning'] = True
-    model_orig = build_net(interface=interface)
-    _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = open(config['path']['exp_save']+"/"+config['path']['model_name']+"_log.txt").readlines()[-1].split(" ")
-    model_prun = torch.load(f"{config['path']['exp_save']}/{config['path']['model_name']}/{config['path']['model_name']}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth")
-    stract1 = get_stract(model_orig)
-    stract2 = get_stract(model_prun)
-    resize = []
-    for i in range(len(stract1)):
-        if stract1[i][2]!=stract2[i][2]:
-            resize.append({ "name": rename(stract1[i][0]), "type": stract1[i][1], "orig_shape": stract1[i][2],"shape": stract2[i][2]})
-    summary = {
-            'size': float(size),
-            'val_accuracy': float(acc),
-            'resize': resize,
-            'time': "{:.0f}h {:.0f}m {:.0f}s".format(time_elapsed // 60 // 60, time_elapsed // 60 - time_elapsed // 60 // 60 * 60, time_elapsed % 60)
-    }
-    params = model_prun.state_dict()
-    component = 'pruning'
-    save_interface(interface=interface, name_component=component, params=params, summary=summary)
