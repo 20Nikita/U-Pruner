@@ -3,9 +3,9 @@
 ### Description
 Инструмент обрезки моделей.
 
-Реализованы алгоритмы: [my_pruning](#my_pruning), [L2Norm](#L2Norm)
+Реализованы алгоритмы: [my pruning](#my-pruning), [L2Norm](#l2norm)
 
-### my_pruning
+### my pruning
 my_pruning - алгоритм обрезки, основанный на [NetAdapt](https://arxiv.org/abs/1804.03230).
 
 Алгоритм разбивает сеть на блоки c помочью model.named_parameters(), обрезает каждый блок низкоуровневым алгоритмом TaylorFOWeight или L2Norm, до обучает и выбирает лучший по Acc. Так по 1 блоку постепенно обрезает всю сеть. Поддерживается обрезка torch.nn.modules.conv.Conv2d, torch.nn.modules.batchnorm.BatchNorm2d, torch.nn.modules.linear.Linear.
