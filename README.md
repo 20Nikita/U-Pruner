@@ -11,7 +11,7 @@ my_pruning - алгоритм обрезки, основанный на [NetAdap
 Алгоритм разбивает сеть на блоки c помочью model.named_parameters(), обрезает каждый блок низкоуровневым алгоритмом TaylorFOWeight или L2Norm, до обучает и выбирает лучший по Acc. Так по 1 блоку постепенно обрезает всю сеть. Поддерживается обрезка torch.nn.modules.conv.Conv2d, torch.nn.modules.batchnorm.BatchNorm2d, torch.nn.modules.linear.Linear.
 
 #### Гиппер параметры
-- alf\t- Сохранить кратность первых двух каналов конволюции числу alf (33*65*7*7)->(32*64*7*7)
+- alf        - Сохранить кратность первых двух каналов конволюции числу alf (33*65*7*7)->(32*64*7*7)
 - P          - Сколько отрезать от сети (Пока основывается на ptflops.get_model_complexity_info)
 - cart       - На каких картах обучать [0,0,1,1,1,2] (для параллельной работы, запустится обрезка 6 блоков с тренировкой на соответствующих картах)
 - iskl       - Название слоёв, которые не нужно обрезать [input_stem.0.conv,blocks.1.conv2.conv]
@@ -42,12 +42,15 @@ L2Norm - мгновенный алгоритм обрезки. Основан н
     └── proj
         ├── Pruning.yaml
         ├── main.py
-        ├── my_pruning.py
         ├── requirements.txt
         ├── cod
         │   ├── dataset.py
+        │   ├── ModelSpeedup.py
+        │   ├── my_pruning_pabotnik.py
+        │   ├── my_pruning.py
+        │   ├── retraining.py
         │   ├── train_nni.py
-        │   └── trainer.py
+        │   └── training.py
         ├── shared # interface
         │   └── results
         │       └── interface.pt
