@@ -24,7 +24,7 @@ def my_pruning(start_size_model):
     lr_training     = config['training']['lr']
     N_it_ob         = config['training']['num_epochs']
     
-    load            = config['restart']['load']
+    load            = config['my_pruning']['restart']['load']
     alf             = config['my_pruning']['alf']
     P               = config['my_pruning']['P']
     cart            = config['my_pruning']['cart'] 
@@ -36,7 +36,7 @@ def my_pruning(start_size_model):
     exp_save        = config['path']['exp_save']
     modelName       = config['path']['model_name']
 
-    start_iteration = config['restart']['start_iteration']
+    start_iteration = config['my_pruning']['restart']['start_iteration']
     is_spid_crop    = config['spid']['is_spid_crop']
     
     since = time.time()
