@@ -3,7 +3,7 @@
 ## Description
 Инструмент обрезки моделей.
 
-Реализованы алгоритмы: [my pruning](#my-pruning), [L2Norm](#l2norm), [FPGM](#fpgm), [TaylorFOWeight](#taylorfoweight), [FPGM](#fpgm), [AGP](#agp), [Linear](#linear), [LotteryTicket](#lotteryticket).
+Реализованы алгоритмы: [my pruning](#my-pruning), [L2Norm](#l2norm), [FPGM](#fpgm), [TaylorFOWeight](#taylorfoweight), [AGP](#agp), [Linear](#linear), [LotteryTicket](#lotteryticket).
 ## my pruning
 my_pruning - алгоритм обрезки, основанный на [NetAdapt](https://arxiv.org/abs/1804.03230). Разработан специально для генерируемых сетей алгоритмами NAS. Занимает много времени, но работает одинаково хорошо с любой архитектурой сети и любым степенем сжатия.
 
