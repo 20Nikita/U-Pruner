@@ -40,7 +40,7 @@ training:
     lr: 0.00001
 
 #===================== MY_PRUNING ==============================|
-algorithm: L2Norm             # Алгоритм прунинга (My_pruning, AGP, Linear, LotteryTicket, TaylorFOWeight, ActivationMeanRank, FPGM, L2Norm)
+algorithm: My_pruning             # Алгоритм прунинга (My_pruning, AGP, Linear, LotteryTicket, TaylorFOWeight, ActivationMeanRank, FPGM, L2Norm)
 
 #===================== MY_PRUNING ==============================|
 my_pruning:

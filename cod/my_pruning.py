@@ -37,7 +37,7 @@ def my_pruning(start_size_model):
     modelName       = config['path']['model_name']
 
     start_iteration = config['my_pruning']['restart']['start_iteration']
-    is_spid_crop    = config['spid']['is_spid_crop']
+    is_spid_crop    = False
     
     since = time.time()
     model = torch.load(load)
