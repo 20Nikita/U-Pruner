@@ -71,21 +71,22 @@ def my_pruning(start_size_model):
                                 load = snp + "/" + modelName + "_" + strr[-2].split(" ")[1] + "_it_{}_acc_{:.3f}.pth".format(it,maxx)
                             print(strr[-2])
                             model = torch.load(load)
-        size_model = get_size(copy.deepcopy(model))                    
-        optimizer = optim.Adam(model.parameters(), lr=lr_training)
-        model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
-        load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
-        torch.save(model,load)
-        f = open(exp_save + "/" + modelName + "_log.txt", "a")
-        f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,"pass","[ ]","[ ]",acc,size_model/start_size_model))
-        f.close()
-        for filename in os.listdir(snp):
-            if filename.split(".")[-1] == "pth":
-                if len(filename.split("size")) == 1 and filename != "orig_model.pth":
-                    os.remove(snp + "/" + filename)
-            if filename.split(".")[-1] == "txt":
-                if len(filename.split("train_log")) == 2:
-                    os.remove(snp + "/" + filename)
+        if len(parametri):
+            size_model = get_size(copy.deepcopy(model))                    
+            optimizer = optim.Adam(model.parameters(), lr=lr_training)
+            model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
+            load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
+            torch.save(model,load)
+            f = open(exp_save + "/" + modelName + "_log.txt", "a")
+            f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,"pass","[ ]","[ ]",acc,size_model/start_size_model))
+            f.close()
+            for filename in os.listdir(snp):
+                if filename.split(".")[-1] == "pth":
+                    if len(filename.split("size")) == 1 and filename != "orig_model.pth":
+                        os.remove(snp + "/" + filename)
+                if filename.split(".")[-1] == "txt":
+                    if len(filename.split("train_log")) == 2:
+                        os.remove(snp + "/" + filename)
                             
             
         
@@ -163,6 +164,7 @@ def my_pruning(start_size_model):
         model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
         load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
         torch.save(model,load)
+        stract = get_stract(model)
         del model
         f = open(exp_save + "/" + modelName + "_log.txt", "a")
         f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,sloi,do,posle,acc,size_model/start_size_model))
