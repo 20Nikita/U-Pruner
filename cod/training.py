@@ -3,6 +3,7 @@ import os
 import torch
 import torch.nn as nn
 from torch.utils.data import DataLoader
+import torch.optim as optim
 
 import cod.dataset as Dataset
 from cod.train_nni import train_model
@@ -48,6 +49,22 @@ def trainer(model, optimizer, criterion, epoch = 0, num_epochs = 1, ind = 0):
     ma = mass[1].index(max(mass[1]))
     st = pihati
     return model, mass[2][mi], mass[1][ma], st, time_elapsed
+
+def finetuner(model):
+    optimizer = optim.Adam(model.parameters(), lr=config['retraining']['lr'])
+    fil = config['path']['exp_save'] + "/" + config['path']['model_name'] + "/" + f"train_log_0.txt"
+    train_model(model, 
+                criterion,
+                optimizer, 
+                train_dataloader, 
+                val_dataloader, 
+                batch_size_t, 
+                batch_size_v, 
+                num_epochs = config['retraining']['num_epochs'],
+                N_class = N_class,
+                rezim = ['T','V'],
+                fil = fil)
+
 
 
 
