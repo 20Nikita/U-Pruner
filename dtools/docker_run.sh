@@ -1,1 +1,1 @@
-docker run --gpus all --shm-size 32G -v /storage/3030/GordeevN/prj/Pruning/snp/Mypruning:/workspace/snp -v /storage_labs/db/paradigma/chest_xray/dataset_chest_xray_640_480:/workspace/proj/dataset -v /storage/3030/GordeevN/prj/Pruning/start/ToNikita/elbrus_chest_mbnet:/workspace/proj/shared/results  pruning:v0
+docker run --gpus all --shm-size 32G -v /storage/3030/GordeevN/prj/Pruning/snp/Mypruning:/workspace/snp -v /storage_labs/db:/workspace/db_labs -v /storage/3030/GordeevN/prj/Pruning/snp:/workspace/proj/shared/results  pruning:v0

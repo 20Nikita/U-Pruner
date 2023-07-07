@@ -33,9 +33,106 @@ def get_stract(model):
 #             stact[-1].append([p[0],len(p[1])])
     return(stact)
 
+def get_mask(model):
+    gm = torch.fx.symbolic_trace(model)
+    nodes = []
+    crops = []
+    for n in gm.graph.nodes:
+        if len(n.args) > 0:
+            nodes.append(n)
+    start = True
+
+    def add(mas, x):
+        t = True
+        for i in mas:
+            if str(i) == str(x):
+                t = False
+        if t:
+            mas.append(x)
+        return t
+
+    for i, n in enumerate(nodes):
+        if len(n.args) > 0:
+            if n.op == "call_module":
+                if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1 or \
+                eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                    crops.append([[rename(str(n.target)),0]])
+                    x_name = str(n.name)
+                    poisk = [x_name]
+                    poisk2 = []
+                    i_poisk = 0
+                    i_poisk2 = 0
+                    while True:
+                        next_1 = False
+                        next_2 = False
+                        f = False
+                        for j, n in enumerate(nodes):
+                            if len(poisk) > i_poisk and str(n.args[0]) == poisk[i_poisk]:
+                                next_1 = True
+                                f = True
+                                add(poisk, str(n.name))
+                                if n.op == "call_module":
+                                    if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1:
+                                        add(crops[-1], [rename(str(n.target)),1])
+                                        poisk.pop()
+                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                                        add(crops[-1], [rename(str(n.target)),0])
+                                        poisk.pop()
+                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" or \
+                                    eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.batchnorm.BatchNorm2d'>":
+                                        add(crops[-1], [rename(str(n.target)),0])
+                            if len(poisk2) > i_poisk2 and str(n.name) == poisk2[i_poisk2]:
+                                next_2 = True
+                                f = True
+                                if n.op == "call_module":
+                                    add(poisk2, str(n.args[0]))
+                                    if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1:
+                                        add(crops[-1], [rename(str(n.target)),0])
+                                        poisk2.pop()
+                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                                        add(crops[-1], [rename(str(n.target)),1])
+                                        poisk.pop()
+                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" or \
+                                    eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.batchnorm.BatchNorm2d'>":
+                                        add(crops[-1], [rename(str(n.target)),0])
+
+                            if len(n.args) > 1:
+                                for name in n.args:
+                                    if len(poisk) > i_poisk and str(name) == poisk[i_poisk]:
+                                        add(poisk, str(n.name))
+                                        for name in n.args:
+                                            add(poisk2, str(name))
+                                            add(poisk, str(name))
+                                if len(poisk2) > i_poisk2 and str(n.name) == poisk2[i_poisk2]:
+                                    for name in n.args:
+                                        add(poisk2, str(name))
+                                        add(poisk, str(name))
+                                        next_2 = True
+
+                            if str(type(n.args[0])) == "<class 'torch.fx.immutable_collections.immutable_list'>":
+                                for name in n.args[0]:
+                                    if len(poisk) > i_poisk and str(name) == poisk[i_poisk]:
+                                        add(poisk, str(n.name))
+                                if len(poisk2) > i_poisk2 and str(n.name) == poisk2[i_poisk2]:
+                                    for name in n.args[0]:
+                                        add(poisk2, str(name))
+                                        add(poisk, str(name))
+                                        next_2 = True
+
+
+                        if not f and len(poisk) > i_poisk:
+                            next_1 = True
+                        if  not f and len(poisk2) > i_poisk2 and i_poisk2!=0:
+                            next_2 = True
+                        if next_1: i_poisk +=1
+                        if next_2: i_poisk2+=1
+                        if not next_1 and not next_2:
+                            break
+    return crops
+
 # Получить сумарное количество строк в конвалюционной матрице. Мера размера сети
 def get_size(model):
-    config = yaml.safe_load(open('/workspace/proj/Pruning.yaml'))
+    config = yaml.safe_load(open('Pruning.yaml'))
     shape = config['model']['size']
     macs, params = get_model_complexity_info(model, (3, shape[0], shape[1]), as_strings=False, print_per_layer_stat=False, verbose=False)
     return params
@@ -337,6 +434,21 @@ def compres2(model, masks, ofa = False, stop = True):
                 go_model_ofa_scip(model,get_stract(model), i, Delet_indeks, obratno = False, priint = True, stop = False)
                 go_model_ofa_scip(model,obr(get_stract(model)), i, Delet_indeks, obratno = True, priint = True, stop = False)
 
+# Проходет по маске и запускает удаление строк слоя из маски и связанных с ним слоём
+def compres3(model, masks, sours_mask):
+    for i in masks:
+        for j in masks[i]:
+            Name = rename(i)                       # Обращение к слою
+            Delet_indeks = get_delet(masks[i][j])  # получить индексы строк для удаления из маски параметров
+            # Удалить компоненты слоя по маске
+            for mask in sours_mask:
+                if mask[0][0] == Name:
+                    for k, (sloi, i) in enumerate(mask):
+                        if i == 0:
+                            delet(model, sloi, i = Delet_indeks)
+                        elif i == 1:
+                            delet(model, sloi, j = Delet_indeks)
+                
 # Получить переданные параметры
 def get_param():
     parser = argparse.ArgumentParser()
@@ -358,7 +470,7 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
     import yaml
     import torch.optim as optim
     config = yaml.safe_load(open('Pruning.yaml'))
-    import retraining as trainer
+    import training as trainer
     
     alf        = config['my_pruning']['alf']
     lr         = config['retraining']['lr']
@@ -390,7 +502,7 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
     if do != posle and posle[1] % alf == 0:                       
         # Дообучаем
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        model, loss, acc, st, time_elapsed2 =trainer.trainer(model, optimizer, trainer.criterion, num_epochs = num_epochs, ind = param.self_ind)
+        model, loss, acc, st, time_elapsed2 =trainer.retrainer(model, optimizer, trainer.criterion, num_epochs = num_epochs, ind = param.self_ind)
         # Запись результата
         f = open(fil_it, "a")
         strok = str(param.self_ind) + " " + config_list[0]['op_names'][0] + " " + \
@@ -408,14 +520,75 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
         f.write(strok)
         f.close()
             
+def pruning_mask(model, masks, do, param, config_list):
+    import yaml
+    import torch.optim as optim
+    config = yaml.safe_load(open('Pruning.yaml'))
+    import training as trainer
+    import json
+    
+    alf        = config['my_pruning']['alf']
+    lr         = config['retraining']['lr']
+    num_epochs = config['retraining']['num_epochs']
+    snp        = config['path']['exp_save'] + "/" + config['path']['model_name']
+    modelName  = config['path']['model_name']
+    load       = config['my_pruning']['restart']['load']
+    fil_it = snp + "/" + modelName + "_it{}.txt".format(param.iterr)
+    model = torch.load(param.load)                                       # Загрузка модели (модель осталась порезанной)
+    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+    
+    with open(load.split(".")[0] + ".msk", "r") as fp:
+        sours_mask = json.load(fp)
+    
+    
+    if do[0]*do[1] == param.orig_size:
+        compres3(model, masks, sours_mask)             # Запуск прунинга
+    
+    model.to(device)                                                     # Замененные слои не на карте
+    # Узнать размер сверток после прунинга
+    for name in get_stract(model):
+        if name[0].split(".weight")[0] == config_list[0]['op_names'][0]:
+            posle = name[2]
+            break
+
+    # После обрезки сеть обрезслась и кратна alf
+    
+    if do != posle and posle[1] % alf == 0:                       
+        # Дообучаем
+        optimizer = optim.Adam(model.parameters(), lr=lr)
+        model, loss, acc, st, time_elapsed2 =trainer.retrainer(model, optimizer, trainer.criterion, num_epochs = num_epochs, ind = param.self_ind)
+        # Запись результата
+        f = open(fil_it, "a")
+        strok = str(param.self_ind) + " " + config_list[0]['op_names'][0] + " " + \
+        str(acc) +" "+ str(do) + " "+ str(posle) + "\n"
+        f.write(strok)
+        f.close()
+        # Сохранение модели
+        torch.save(model, snp + "/" + modelName + "_" + config_list[0]['op_names'][0] + \
+                   "_it_{}_acc_{:.3f}.pth".format(param.iterr,acc))
+    else:
+        # Запись размерностей до и после прунинга
+        f = open(fil_it, "a")
+        strok = str(param.self_ind) + " " + config_list[0]['op_names'][0] + " " + \
+        "EROR" +" "+ str(do) + " "+ str(posle) + "\n"
+        f.write(strok)
+        f.close()
+
 def main(param):
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(param.cuda)
     import torch
     import nni
     from nni.algorithms.compression.v2.pytorch.pruning import TaylorFOWeightPruner
     from nni.algorithms.compression.v2.pytorch.pruning import L2NormPruner
+    # from nni.algorithms.compression.pytorch.pruning import L2FilterPruner
     from nni.compression.pytorch import ModelSpeedup
-    import retraining as trainer
+    import training as trainer
+    import yaml
+    import sys
+    config = yaml.safe_load(open('Pruning.yaml'))
+    mask = config['mask']['type']
+    sys.path.append(config['model']['path_to_resurs'])
+    
     # Параметры прунинга nni
     config_list = [{'sparsity': param.sparsity, 
                 'op_types': ['Conv2d'],
@@ -434,7 +607,7 @@ def main(param):
     # Выбор алгоритма прунинга
     pruner = None
     if param.algoritm == "TaylorFOWeight":
-        pruner = TaylorFOWeightPruner(model, config_list, trainer.trainer, 
+        pruner = TaylorFOWeightPruner(model, config_list, trainer.retrainer, 
                                       traced_optimizer, trainer.criterion, 
                                       training_batches = trainer.batch_size_t)
     elif param.algoritm == "L2Norm":
@@ -444,18 +617,22 @@ def main(param):
     model, masks = pruner.compress()
     pruner._unwrap_model()
     type_pruning = ""
-    # Обрезка сети на основе маски от nni
-    try:
-        # Идеальная обрезка (только связанных слоёв)
-        pruning_type(model, masks, do, param, config_list, type_pruning = "defolt")
-    except:
+    if mask == "None":
+        # Обрезка сети на основе маски от nni
         try:
-            # Обрезка по особенностям ofa
-            pruning_type(model, masks, do, param, config_list, type_pruning = "ofa")
+            # Идеальная обрезка (только связанных слоёв)
+            pruning_type(model, masks, do, param, config_list, type_pruning = "defolt")
         except:
-            # Крайне плохая, но точно работающая обрезка
-            pruning_type(model, masks, do, param, config_list, type_pruning = "total")
+            try:
+                # Обрезка по особенностям ofa
+                pruning_type(model, masks, do, param, config_list, type_pruning = "ofa")
+            except:
+                # Крайне плохая, но точно работающая обрезка
+                pruning_type(model, masks, do, param, config_list, type_pruning = "total")
                 
+    elif  mask == "mask":
+        pruning_mask(model, masks, do, param, config_list)
+        
 if __name__ == "__main__":
     param = get_param()
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(param.cuda)

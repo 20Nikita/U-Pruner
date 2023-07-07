@@ -3,7 +3,13 @@ import time
 import copy
 import torch
 import numpy as np
-
+from torchmetrics import JaccardIndex
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
+try:
+    from cod.detect import get_preds, get_target
+except:
+    from detect import get_preds, get_target
+    
 def train_model(model, 
                 classification_criterion, 
                 optimizer, 
@@ -14,7 +20,8 @@ def train_model(model,
                 num_epochs=100,
                 N_class = 2,
                 rezim = ['T', 'V'],
-                fil = None):
+                fil = None,
+                task_tupe = "classification"):
     # Запомнить время начала обучения
     since = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -27,14 +34,16 @@ def train_model(model,
     best_epoch_classification = 0
     pihati = ""
     tit = "\n!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-    
+    if task_tupe == "segmentation":
+        jaccard = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
     for epoch in range(num_epochs):
         pihati += 'Epoch {}/{}'.format(epoch + 1, num_epochs) + "\n"
         pihati += '-' * 10 + "\n"
         f = open(fil, "w")
         f.write(pihati + "\n" + tit)
         f.close()
-        
+        if task_tupe == "detection":
+            metric = MeanAveragePrecision(box_format = 'xywh')
         # У каждой эпохи есть этап обучения и проверки
         for phase in rezim:
             if phase == 'T':
@@ -63,12 +72,12 @@ def train_model(model,
                         + tit)
                 f.close()
                 
-                classification_label = classification_label.to(device)
                     
                     
                 # считать все на видеокарте или ЦП
                 inputs = inputs.to(device)
-                classification_label = classification_label.to(device)
+                if task_tupe != "detection":
+                    classification_label = classification_label.to(device)
                 # обнулить градиенты параметра
                 optimizer.zero_grad()
                 # forward
@@ -76,8 +85,7 @@ def train_model(model,
                 with torch.set_grad_enabled(phase == 'T'):
                     # Проход картинок через модель
                     classification = model(inputs)
-                    # Получить индексы максимальных элементов
-                    _, preds = torch.max(classification, 1)
+                    
                     loss = classification_criterion(classification, classification_label)
                     # Если учимся
                     if phase == 'T':
@@ -87,12 +95,25 @@ def train_model(model,
                         optimizer.step()
                 # Статистика
                 running_classification_loss += loss.item() * inputs.size(0)
-                running_corrects += torch.sum(preds == classification_label.data)# Колличество правильных ответов
+                if task_tupe == "classification":
+                    # Получить индексы максимальных элементов
+                    _, preds = torch.max(classification, 1)
+                    running_corrects += torch.sum(preds == classification_label.data)# Колличество правильных ответов
+                elif task_tupe == "segmentation":
+                    for x, y in zip(classification, classification_label):
+                        x = torch.argmax(x, dim=0)
+                        y = torch.argmax(y, dim=0)
+                        running_corrects += jaccard(x, y)
+                elif task_tupe == "detection":
+                    metric.update(get_preds(classification, k = 10, alf = 0.01), get_target(classification_label))
             # Усреднить статистику
             epoch_classification_loss = running_classification_loss / dataset_sizes
             running_classification_loss/= dataset_sizes
-            epoch_acc = running_corrects / dataset_sizes
-            
+            if task_tupe != "detection":
+                epoch_acc = running_corrects / dataset_sizes
+            else:
+                metrics = metric.compute()
+                epoch_acc = metrics['map_50']
             pihati += '{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc)
             pihati += "\n"
             f = open(fil, "w")

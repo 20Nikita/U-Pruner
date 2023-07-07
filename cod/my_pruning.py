@@ -1,6 +1,5 @@
 import subprocess
-from interfaces.tools import *
-
+from collections import OrderedDict
 def potok(self_ind,cuda,load,name_sloi,sparsity,orig_size,iterr,algoritm):
 #     print(self_ind, name_sloi) 
     return subprocess.call(['python3 cod/my_pruning_pabotnik.py --self_ind {}\
@@ -17,9 +16,10 @@ def my_pruning(start_size_model):
     import time 
     import copy 
     from multiprocessing import Process
+    import json
 
     import cod.training as trainer
-    from cod.my_pruning_pabotnik import get_size, get_stract, rename
+    from cod.my_pruning_pabotnik import get_size, get_stract, rename, get_mask
     
     lr_training     = config['training']['lr']
     N_it_ob         = config['training']['num_epochs']
@@ -36,10 +36,18 @@ def my_pruning(start_size_model):
     snp             = config['path']['exp_save'] + "/" + config['path']['model_name']
     exp_save        = config['path']['exp_save']
     modelName       = config['path']['model_name']
-
+    mask            = config['mask']['type']
+    sours_mask      = config['mask']['sours_mask']
     
     since = time.time()
     model = torch.load(load)
+    
+    if mask == "mask":
+        if sours_mask == "None":
+            sours_mask = get_mask(model)
+        with open(load.split(".")[0] + ".msk", "w") as fp:
+             json.dump(sours_mask, fp)    
+            
     if not start_size_model:
         start_size_model = get_size(copy.deepcopy(model))
     if resize_alf:
@@ -89,7 +97,6 @@ def my_pruning(start_size_model):
                         os.remove(snp + "/" + filename)
                             
             
-        
     it = start_iteration
     stract = get_stract(model)
     size_model = get_size(model)
@@ -144,11 +151,14 @@ def my_pruning(start_size_model):
         f = open(fil_it, "r")
         strr = f.read()
         strr = strr.split("\n")
-        maxx = float(strr[0].split(" ")[2])
-        load = snp + "/" + modelName + "_" + strr[0].split(" ")[1] + "_it_{}_acc_{:.3f}.pth".format(it,maxx)
-        sloi = strr[0].split(" ")[1]
-        do = strr[0].split(" ")[3] + " " + strr[0].split(" ")[4]
-        posle = strr[0].split(" ")[5] + " " + strr[0].split(" ")[6]
+        for st in strr[:-1]:
+            if st.split(" ")[2] != "EROR":
+                maxx = float(st.split(" ")[2])
+                load = snp + "/" + modelName + "_" + st.split(" ")[1] + "_it_{}_acc_{:.3f}.pth".format(it,maxx)
+                sloi = st.split(" ")[1]
+                do = st.split(" ")[3] + " " + st.split(" ")[4]
+                posle = st.split(" ")[5] + " " + st.split(" ")[6]
+                break
         for st in strr[:-1]:
             if st.split(" ")[2] != "EROR":
                 if float(st.split(" ")[2]) > maxx:

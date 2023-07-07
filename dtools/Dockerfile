@@ -1,6 +1,7 @@
 FROM paradigma_base:v0
 RUN apt-get update
+COPY ./requirements.txt ./
+RUN pip install -r ./requirements.txt
 WORKDIR /workspace/proj
 COPY . .  
-RUN pip --no-cache-dir install -r /workspace/proj/requirements.txt
 ENTRYPOINT ["python", "main.py"]
