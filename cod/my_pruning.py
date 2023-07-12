@@ -41,7 +41,10 @@ def my_pruning(start_size_model):
     
     since = time.time()
     model = torch.load(load)
-    
+    # Кастыль для сегментации в офе
+    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
+        
     if mask == "mask":
         if sours_mask == "None":
             sours_mask = get_mask(model)
@@ -79,11 +82,17 @@ def my_pruning(start_size_model):
                                 load = snp + "/" + modelName + "_" + strr[-2].split(" ")[1] + "_it_{}_acc_{:.3f}.pth".format(it,maxx)
                             print(strr[-2])
                             model = torch.load(load)
+                            # Кастыль для сегментации в офе
+                            if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+                                model.backbone_hooks._attach_hooks()
         if len(parametri):
             size_model = get_size(copy.deepcopy(model))                    
             optimizer = optim.Adam(model.parameters(), lr=lr_training)
             model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
             load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
+            # Кастыль для сегментации в офе
+            if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+                model.backbone_hooks._clear_hooks()
             torch.save(model,load)
             f = open(exp_save + "/" + modelName + "_log.txt", "a")
             f.write("N {} sloi {} do {} posle {} acc {} size {}\n".format(it,"pass","[ ]","[ ]",acc,size_model/start_size_model))
@@ -96,7 +105,6 @@ def my_pruning(start_size_model):
                     if len(filename.split("train_log")) == 2:
                         os.remove(snp + "/" + filename)
                             
-            
     it = start_iteration
     stract = get_stract(model)
     size_model = get_size(model)
@@ -106,7 +114,7 @@ def my_pruning(start_size_model):
         parametri = []
         ind = 0
         for name in stract:
-            if name[1]=='torch.nn.modules.conv.Conv2d' and  len(name[0].split(".bias")) == 1:
+            if name[1]=='Conv2d' and  len(name[0].split(".bias")) == 1:
                 add = True
                 for isk in iskl:
                     if isk == name[0].split(".weight")[0]:
@@ -167,12 +175,22 @@ def my_pruning(start_size_model):
                     sloi = st.split(" ")[1]
                     do = st.split(" ")[3] + " " + st.split(" ")[4]
                     posle = st.split(" ")[5] + " " + st.split(" ")[6]
-
+        
         model = torch.load(load)
+        m = copy.deepcopy(model)
+        # Кастыль для сегментации в офе
+        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+            model.backbone_hooks._attach_hooks()
+            m.backbone_hooks._attach_hooks()
+            
         optimizer = optim.Adam(model.parameters(), lr=lr_training)
-        size_model = get_size(copy.deepcopy(model))
+        size_model = get_size(m)
+        del m
         model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
         load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
+        # Кастыль для сегментации в офе
+        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+            model.backbone_hooks._clear_hooks()
         torch.save(model,load)
         stract = get_stract(model)
         del model

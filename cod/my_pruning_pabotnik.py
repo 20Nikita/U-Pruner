@@ -4,6 +4,19 @@ import os
 from ptflops import get_model_complexity_info
 import yaml
 #Получить данные об обучаемых параметрах сети
+def get_type(module):
+    type_module = str(type(module))
+    if type_module == "<class 'torch.nn.modules.conv.Conv2d'>" or \
+    type_module == "<class 'models.core.conv.Conv2d'>":
+        return 'Conv2d'
+    elif type_module == "<class 'torch.nn.modules.batchnorm.BatchNorm2d'>" or \
+    type_module == "<class 'models.core.norm.BatchNorm2d'>":
+        return 'BatchNorm2d'
+    elif type_module == "<class 'torch.nn.modules.linear.Linear'>":
+        return 'Linear'
+    else:
+        return type_module
+        
 def get_stract(model):
     stact = []
     for name, parametr in model.named_parameters():
@@ -20,18 +33,23 @@ def get_stract(model):
                 noda = eval("noda.{}".format(bloc))
             elif type_int:
                 noda = eval("noda[{}]".format(intt))
-        types = str(type(noda)).split("'")[1]
-        if types == 'torch.nn.modules.conv.Conv2d':
+        types = get_type(noda)
+        
+        if types == 'Conv2d':
             stact.append([name,types,[noda.in_channels,noda.out_channels], noda.kernel_size[0] * noda.kernel_size[1]])
-        elif types == 'torch.nn.modules.batchnorm.BatchNorm2d':
+        elif types == 'BatchNorm2d':
             stact.append([name,types,[noda.num_features]])
-        elif types == 'torch.nn.modules.linear.Linear':
+        elif types == 'Linear':
             stact.append([name,types,[noda.in_features,noda.out_features]])
         else:
             stact.append([name,types,"******************"])
 #         for p in noda.named_parameters():
 #             stact[-1].append([p[0],len(p[1])])
     return(stact)
+    
+
+
+
 
 def get_mask(model):
     gm = torch.fx.symbolic_trace(model)
@@ -54,8 +72,8 @@ def get_mask(model):
     for i, n in enumerate(nodes):
         if len(n.args) > 0:
             if n.op == "call_module":
-                if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1 or \
-                eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                if get_type(eval(f"model.{rename(str(n.target))}")) == "Conv2d" and eval(f"model.{rename(str(n.target))}").groups == 1 or \
+                get_type(eval(f"model.{rename(str(n.target))}")) == "Linear":
                     crops.append([[rename(str(n.target)),0]])
                     x_name = str(n.name)
                     poisk = [x_name]
@@ -72,28 +90,28 @@ def get_mask(model):
                                 f = True
                                 add(poisk, str(n.name))
                                 if n.op == "call_module":
-                                    if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1:
+                                    if get_type(eval(f"model.{rename(str(n.target))}")) == "Conv2d" and eval(f"model.{rename(str(n.target))}").groups == 1:
                                         add(crops[-1], [rename(str(n.target)),1])
                                         poisk.pop()
-                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                                    elif get_type(eval(f"model.{rename(str(n.target))}")) == "Linear":
                                         add(crops[-1], [rename(str(n.target)),0])
                                         poisk.pop()
-                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" or \
-                                    eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.batchnorm.BatchNorm2d'>":
+                                    elif get_type(eval(f"model.{rename(str(n.target))}")) == "Conv2d" or \
+                                    get_type(eval(f"model.{rename(str(n.target))}")) == "BatchNorm2d":
                                         add(crops[-1], [rename(str(n.target)),0])
                             if len(poisk2) > i_poisk2 and str(n.name) == poisk2[i_poisk2]:
                                 next_2 = True
                                 f = True
                                 if n.op == "call_module":
                                     add(poisk2, str(n.args[0]))
-                                    if eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" and eval(f"model.{rename(str(n.target))}").groups == 1:
+                                    if get_type(eval(f"model.{rename(str(n.target))}")) == "Conv2d" and eval(f"model.{rename(str(n.target))}").groups == 1:
                                         add(crops[-1], [rename(str(n.target)),0])
                                         poisk2.pop()
-                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.linear.Linear'>":
+                                    elif get_type(eval(f"model.{rename(str(n.target))}")) == "Linear":
                                         add(crops[-1], [rename(str(n.target)),1])
                                         poisk.pop()
-                                    elif eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.conv.Conv2d'>" or \
-                                    eval(f"str(type(model.{rename(str(n.target))}))") == "<class 'torch.nn.modules.batchnorm.BatchNorm2d'>":
+                                    elif get_type(eval(f"model.{rename(str(n.target))}")) == "Conv2d" or \
+                                    get_type(eval(f"model.{rename(str(n.target))}")) == "BatchNorm2d":
                                         add(crops[-1], [rename(str(n.target)),0])
 
                             if len(n.args) > 1:
@@ -184,8 +202,8 @@ def delet_weight_Linear(weight, i = -1, j = -1):
 #Замена слоя такимже, но с обрезанными параметрами и уменьшенным размером.     
 def delet(model, Delet_Name_sloi, i = -1, j = -1):
     #Узнать тип слоя
-    types = str(type(eval("model.{}".format(Delet_Name_sloi)))).split("'")[1]
-    if types == 'torch.nn.modules.conv.Conv2d':
+    types = get_type(eval("model.{}".format(Delet_Name_sloi)))
+    if types == 'Conv2d':
         groups = eval("model.{}".format(Delet_Name_sloi)).groups
         groups = 1 if groups == 1 else groups-len(i)
         # Если в квадратной матрице с 1 продублированным n раз столбцом мне нужно удалить столбец. Я удалю строку по индексу столбца.
@@ -233,7 +251,7 @@ def delet(model, Delet_Name_sloi, i = -1, j = -1):
         # Заменить слой обрезанным
         exec("model.{} = new_pam".format(Delet_Name_sloi))
         
-    elif types == 'torch.nn.modules.batchnorm.BatchNorm2d':
+    elif types == 'BatchNorm2d':
         # Изменить размер строк
         num_features = eval("model.{}".format(Delet_Name_sloi)).num_features -len(i)
         
@@ -253,7 +271,7 @@ def delet(model, Delet_Name_sloi, i = -1, j = -1):
         # Заменить слой обрезанным
         exec("model.{} = new_pam".format(Delet_Name_sloi))
 
-    elif types == 'torch.nn.modules.linear.Linear':
+    elif types == 'Linear':
 
         in_features = eval("model.{}".format(Delet_Name_sloi)).in_features
         in_features = in_features if i == -1 else in_features-len(i)
@@ -318,8 +336,8 @@ def go_model(model, names, Delet_Name_sloi, Delet_indeks, obratno = False, priin
             if obratno:
                 continue                                           # Текущий сдлй уже был порезан при движении вперед
         # Если текущий стой - слой конвалюции и мы в режиме удаления, и этот параметр не bias
-        elif str(type(eval("model.{}".format(Name_the_sloi)))).split("'")[1] == \
-        'torch.nn.modules.conv.Conv2d' and is_delett and not_bias:
+        elif get_type(eval("model.{}".format(Name_the_sloi))) == \
+        'Conv2d' and is_delett and not_bias:
             if eval("model.{}".format(Name_the_sloi)).groups == 1: # Этот слой не состоит из дубликатов столбцов
                 is_delett = False                                  # Выходим из режима удаления
                 if not priint:                                     # Отображаем или удаляем, в зависимости от режима работы
@@ -359,9 +377,9 @@ def go_model_ofa_scip(model, names, Delet_Name_sloi, Delet_indeks, obratno = Fal
                 if obratno:                         # При движении назад
                     is_delett = False               # удалять последний элемент блока в конце не нужно
                     break             
-                elif name[1] == 'torch.nn.modules.conv.Conv2d': # При движении вперед, если этот слой - слой конволюции
+                elif name[1] == 'Conv2d': # При движении вперед, если этот слой - слой конволюции
                     is_delett = False                           # Выходим из режима удаления
-                    if name[2][-1] == size or (name[2][0] == size  and name[1] == 'torch.nn.modules.linear.Linear'): # Если у первого элемента следующего слоя размерность как у удоляемого
+                    if name[2][-1] == size or (name[2][0] == size  and name[1] == 'Linear'): # Если у первого элемента следующего слоя размерность как у удоляемого
                         if not priint:                          # Удоляем или принтуем в зависимости от режима работы
                             if obratno:
                                 print("K",name)
@@ -372,13 +390,13 @@ def go_model_ofa_scip(model, names, Delet_Name_sloi, Delet_indeks, obratno = Fal
                         else:
                             print("K",name)
         if is_delett and not_bias:              # Если мы в режиме удаления и этот параметр не bias
-            if name[2][-1] == size or (name[2][0] == size  and name[1] == 'torch.nn.modules.linear.Linear'): # Размерность строк совпадает (конволюции и бачнорм) с обзезаемым слоем
+            if name[2][-1] == size or (name[2][0] == size  and name[1] == 'Linear'): # Размерность строк совпадает (конволюции и бачнорм) с обзезаемым слоем
                 if not priint:                  # Удоляем их если мы в режиме удаления
                     print("S",name)
                     delet(model, Name_the_sloi, i = Delet_indeks, j = -1)
                 else:
                     print("S",name)
-            if name[2][0] == size and name[1] == 'torch.nn.modules.conv.Conv2d': # Столбцы конволюционных матриц с этой размерностью
+            if name[2][0] == size and name[1] == 'Conv2d': # Столбцы конволюционных матриц с этой размерностью
                 if eval("model.{}".format(Name_the_sloi)).groups==1:             # которые не состоят из дублекатов себя
                     if not priint:                                               # ттоже удаляем или принтуем
                         print("S",name)
@@ -479,6 +497,9 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
     modelName  = config['path']['model_name']
     fil_it = snp + "/" + modelName + "_it{}.txt".format(param.iterr)
     model = torch.load(param.load)                                       # Загрузка модели (модель осталась порезанной)
+    # Кастыль для сегментации в офе
+    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     print(type_pruning)
@@ -510,6 +531,9 @@ def pruning_type(model, masks, do, param, config_list, type_pruning = "defolt"):
         f.write(strok)
         f.close()
         # Сохранение модели
+        # Кастыль для сегментации в офе
+        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+            model.backbone_hooks._clear_hooks()
         torch.save(model, snp + "/" + modelName + "_" + config_list[0]['op_names'][0] + \
                    "_it_{}_acc_{:.3f}.pth".format(param.iterr,acc))
     else:
@@ -535,6 +559,9 @@ def pruning_mask(model, masks, do, param, config_list):
     load       = config['my_pruning']['restart']['load']
     fil_it = snp + "/" + modelName + "_it{}.txt".format(param.iterr)
     model = torch.load(param.load)                                       # Загрузка модели (модель осталась порезанной)
+    # Кастыль для сегментации в офе
+    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     
     with open(load.split(".")[0] + ".msk", "r") as fp:
@@ -564,6 +591,9 @@ def pruning_mask(model, masks, do, param, config_list):
         f.write(strok)
         f.close()
         # Сохранение модели
+        # Кастыль для сегментации в офе
+        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+            model.backbone_hooks._clear_hooks()
         torch.save(model, snp + "/" + modelName + "_" + config_list[0]['op_names'][0] + \
                    "_it_{}_acc_{:.3f}.pth".format(param.iterr,acc))
     else:
@@ -596,6 +626,12 @@ def main(param):
                }]
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     model = torch.load(param.load)
+    # Кастыль для сегментации в офе
+    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
+    # Кастыль для сегментации в офе
+    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
     model = model.to(device)
     traced_optimizer = nni.trace(torch.optim.Adam)(model.parameters())
     

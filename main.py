@@ -29,6 +29,7 @@ if type_save_load == 'interface':
     from interfaces.tools import *
     interface = load_interface(path_to_interface = config['model']['path_to_resurs'], load_name = config['model']['name_resurs'])
     model = build_net(interface=interface, pretrained = True)
+    # model = build_net(interface=interface, pretrained = False)
 elif type_save_load == 'pth':
     import sys
     sys.path.append(config['model']['path_to_resurs'])
@@ -37,7 +38,13 @@ elif type_save_load == 'pth':
 print(config['algorithm'])
 
 if config['algorithm'] == 'My_pruning':
+    # Кастыль для сегментации в офе
+    if type_save_load == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._clear_hooks()
     torch.save(model, snp + "/" + "orig_model.pth")
+    # Кастыль для сегментации в офе
+    if type_save_load == 'interface' and config['task']['type'] == "segmentation":
+        model.backbone_hooks._attach_hooks()
     start_size_model = get_size(model)
     del model
     my_pruning.my_pruning(start_size_model = start_size_model)
@@ -84,7 +91,12 @@ if type_save_load == 'interface':
     stract1 = get_stract(model_orig)
     stract2 = get_stract(model_prun)
 
-    size = get_size(copy.deepcopy(model_prun)) / get_size(copy.deepcopy(model_orig))
+    m = copy.deepcopy(model_prun)
+    mo = copy.deepcopy(model_orig)
+    if type_save_load == 'interface' and config['task']['type'] == "segmentation":
+        m.backbone_hooks._attach_hooks()
+        mo.backbone_hooks._attach_hooks()
+    size = get_size(m) / get_size(mo)
     params = model_prun.state_dict()
     if ('pruning' in interface) and len(interface['pruning']['summary']['resize']):
         resize = interface['pruning']['summary']['resize']
