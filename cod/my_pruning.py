@@ -48,6 +48,9 @@ def my_pruning(start_size_model):
     if mask == "mask":
         if sours_mask == "None":
             sours_mask = get_mask(model)
+        else:
+            with open(sours_mask, "r") as fp:
+                sours_mask = json.load(fp)
         with open(load.split(".")[0] + ".msk", "w") as fp:
              json.dump(sours_mask, fp)    
             
@@ -159,6 +162,7 @@ def my_pruning(start_size_model):
         f = open(fil_it, "r")
         strr = f.read()
         strr = strr.split("\n")
+        old_load = load
         for st in strr[:-1]:
             if st.split(" ")[2] != "EROR":
                 maxx = float(st.split(" ")[2])
@@ -175,7 +179,8 @@ def my_pruning(start_size_model):
                     sloi = st.split(" ")[1]
                     do = st.split(" ")[3] + " " + st.split(" ")[4]
                     posle = st.split(" ")[5] + " " + st.split(" ")[6]
-        
+        if old_load == load:
+            break
         model = torch.load(load)
         m = copy.deepcopy(model)
         # Кастыль для сегментации в офе
