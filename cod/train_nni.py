@@ -6,9 +6,9 @@ import numpy as np
 from torchmetrics import JaccardIndex
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 try:
-    from cod.detect import get_preds, get_target
+    from cod.detect import get_preds, get_target, Decod
 except:
-    from detect import get_preds, get_target
+    from detect import get_preds, get_target, Decod
     
 def train_model(model, 
                 classification_criterion, 
@@ -21,7 +21,8 @@ def train_model(model,
                 N_class = 2,
                 rezim = ['T', 'V'],
                 fil = None,
-                task_tupe = "classification"):
+                task_tupe = "classification",
+                ssd = False):
     # Запомнить время начала обучения
     since = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
@@ -34,6 +35,8 @@ def train_model(model,
     best_epoch_classification = 0
     pihati = ""
     tit = "\n!!!!!!!!!!!!!!!!!!!!!!!!!\n"
+    if ssd:
+        decod = Decod()
     if task_tupe == "segmentation":
         jaccard = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
     for epoch in range(num_epochs):
@@ -85,7 +88,8 @@ def train_model(model,
                 with torch.set_grad_enabled(phase == 'T'):
                     # Проход картинок через модель
                     classification = model(inputs)
-                    
+                    if ssd:
+                        classification = decod.decod(classification)
                     loss = classification_criterion(classification, classification_label)
                     # Если учимся
                     if phase == 'T':

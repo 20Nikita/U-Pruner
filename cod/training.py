@@ -51,7 +51,10 @@ if annotation_name == None:
     annotation_train = config['dataset']['annotation_name_train']
     annotation_val = config['dataset']['annotation_name_val']
     
-
+ssd = False
+if config['task']['type'] == 'detection' and config['task']['detection'] == 'ssd':
+    ssd = True
+        
 if task_tupe == "classification":
     criterion = classification_criterion
 elif task_tupe == "segmentation":
@@ -82,6 +85,8 @@ else:
 
 def retrainer(model, optimizer, criterion, epoch = 0, num_epochs = 1, ind = 0):
     fil = config['path']['exp_save'] + "/" + config['path']['model_name'] + "/" + f"train_log_{ind}.txt"
+
+        
     model, _, _, pihati, mass, time_elapsed  = train_model(model, 
                                     criterion,
                                     optimizer, 
@@ -93,7 +98,8 @@ def retrainer(model, optimizer, criterion, epoch = 0, num_epochs = 1, ind = 0):
                                     N_class = N_class,
                                     rezim = ['T','V'],
                                     fil = fil,
-                                    task_tupe = task_tupe)
+                                    task_tupe = task_tupe,
+                                    ssd = ssd)
     mi = mass[2].index(min(mass[2]))
     ma = mass[1].index(max(mass[1]))
     st = pihati
@@ -112,7 +118,8 @@ def trainer(model, optimizer, criterion, epoch = 0, num_epochs = 1, ind = 0):
                                     N_class = N_class,
                                     rezim = ['T','V'],
                                     fil = fil,
-                                    task_tupe = task_tupe)
+                                    task_tupe = task_tupe,
+                                    ssd = ssd)
     mi = mass[2].index(min(mass[2]))
     ma = mass[1].index(max(mass[1]))
     st = pihati
@@ -132,7 +139,8 @@ def finetuner(model):
                 N_class = N_class,
                 rezim = ['T','V'],
                 fil = fil,
-                task_tupe = task_tupe)
+                task_tupe = task_tupe,
+                ssd = ssd)
 
 
 

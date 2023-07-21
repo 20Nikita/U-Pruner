@@ -21,6 +21,11 @@ device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 config = yaml.safe_load(open('Pruning.yaml'))
 N_class = config['dataset']['num_classes']
 head_anchors = config['model']['anchors'] 
+D_SP = []
+if config['task']['type'] == 'detection' and config['task']['detection'] == 'ssd':
+    for i in config['model']['feature_maps_w']:
+        D_SP.append(config['model']['size'][0] / i)
+
 
 def get_ransforms(width, height):
     train_transform = A.Compose([
@@ -108,12 +113,6 @@ def custom_collate(batch):
     return images, labels
 
 def get_component(label):
-    head_anchors = [[[16, 8],[8, 16],[8, 8]],
-                   [[32, 16],[16, 16],[20, 16]],
-                   [[64, 32],[32, 64],[32, 32]],
-                   [[112, 64],[64, 112],[64, 64]],
-                   [[224, 112],[112, 224],[112, 112]]]
-    N_class = 4
     m = (min(label[2], head_anchors[0][0][0]) * min(label[3], head_anchors[0][0][1])) / (max(label[2], head_anchors[0][0][0]) * max(label[3], head_anchors[0][0][1]))
     mi =0
     mj =0
@@ -124,17 +123,15 @@ def get_component(label):
                 m = km
                 mi =i
                 mj =j
-        SP = 2**(mi+1)
+        if config['task']['detection'] == 'ssd':
+            SP = D_SP[mi]
+        else:
+            SP = 2**(mi+1)
         a = int(label[0] // SP)
         b = int(label[1] // SP)
     return [mi, mj, a, b, SP]
 
-def get_pred(out_model, n = 10, alf = 0.2, iou_threshold = 0):
-    head_anchors = [[[16, 8],[8, 16],[8, 8]],
-                   [[32, 16],[16, 16],[20, 16]],
-                   [[64, 32],[32, 64],[32, 32]],
-                   [[112, 64],[64, 112],[64, 64]],
-                   [[224, 112],[112, 224],[112, 112]]]
+def get_pred(out_model, k = 10, alf = 0.2, iou_threshold = 0):
     pred = dict(boxes=torch.tensor([[]],dtype = torch.float, device=device),
                 scores=torch.tensor([],dtype = torch.float, device=device),
                 labels=torch.tensor([],dtype = torch.float, device=device))
@@ -142,14 +139,17 @@ def get_pred(out_model, n = 10, alf = 0.2, iou_threshold = 0):
     for mi, d1 in enumerate(out_model):
         d1 = torch.transpose(d1, 2, 0)
         sh = d1.shape[0]
-        t = torch.reshape(d1, (-1, 9))
-        index = torch.topk(t[:,0].flatten(), n).indices
+        t = torch.reshape(d1, (-1, N_class + 5))
+        index = torch.topk(t[:,0].flatten(), k).indices
         for i in index:
             if torch.sigmoid(t[i][0]) > alf:
-                mj= i.item()%3
-                a= i.item()//3 % sh
-                b= i.item()//3 // sh
-                SP = 2**(mi+1)
+                mj= i.item() % len(head_anchors[mi])
+                a= i.item() // len(head_anchors[mi]) % sh
+                b= i.item() // len(head_anchors[mi]) // sh
+                if config['task']['detection'] == 'ssd':
+                    SP = D_SP[mi]
+                else:
+                    SP = 2**(mi+1)
                 pred['scores'] = torch.cat((pred['scores'],t[i][0].unsqueeze(0)), dim=0)
                 pred['labels'] = torch.cat((pred['labels'],torch.argmax(t[i][5:]).unsqueeze(0)+1), dim=0)
                 pred['boxes'] = torch.cat((pred['boxes'],torch.cat(((torch.sigmoid(t[i][1].unsqueeze(0)) + a)*SP,
@@ -215,9 +215,62 @@ def Loss(out, labels):
             bceloss.append(BCELoss(torch.sigmoid(out[mi][bath,ind,a,b]), torch.tensor(1,dtype = torch.float, device=device)))         
 
     for l, o in zip (ver, out):
-        bloss.append(BCEobj(o[:,::9,:,:], l[:,::9,:,:].to(device)))
+        bloss.append(BCEobj(o[:,::N_class + 5,:,:], l[:,::N_class + 5,:,:].to(device)))
     bceloss = sum(bceloss) / len(bceloss)
     bloss = sum(bloss) / len(bloss)
     xyloss = sum(xyloss) / len(xyloss)
     clasloss = sum(clasloss) / len(clasloss)
     return bloss*cof_bloss  + xyloss + clasloss + bceloss
+
+class Decod():
+    def __init__(self):
+        self.num_classes = config['dataset']['num_classes'] + 1
+        self.num_layers = len(config['model']['aspect_ratios'])
+        self.init_sizes = [0]*(self.num_layers*2)
+        for i in range(len(self.init_sizes)):
+            if i < len(self.init_sizes)/2:  # loc feature map sizes
+                num_anchors_there = len(config['model']['aspect_ratios'][i])*2 + 2
+                f_h = config['model']['feature_maps_h'][i]
+                f_w = config['model']['feature_maps_w'][i]
+                self.init_sizes[i] = num_anchors_there * 4 * f_h * f_w
+            else:  # conf feature map sizes
+                num_anchors_there = len(config['model']['aspect_ratios'][i % self.num_layers])*2 + 2
+                f_h = config['model']['feature_maps_h'][i % self.num_layers]
+                f_w = config['model']['feature_maps_w'][i % self.num_layers]
+                self.init_sizes[i] = num_anchors_there * self.num_classes * f_h * f_w
+
+
+    def decod(self, predictions):
+        preds_split = torch.split(predictions, self.init_sizes, dim=1)
+        dims = [0]*(self.num_layers*2)
+        batch_size = predictions.shape[0]
+        for i in range(len(dims)):
+            if i < len(dims)/2:  # loc feature map shapes
+                num_anchors_there = len(config['model']['aspect_ratios'][i])*2 + 2
+                f_h = config['model']['feature_maps_h'][i]
+                f_w = config['model']['feature_maps_w'][i]
+                dims[i] = ([
+                    batch_size,
+                    num_anchors_there * 4,
+                    f_h,
+                    f_w])
+            else:  # conf feature map shapes
+                num_anchors_there = len(config['model']['aspect_ratios'][i % self.num_layers])*2 + 2
+                f_h = config['model']['feature_maps_h'][i % self.num_layers]
+                f_w = config['model']['feature_maps_w'][i % self.num_layers]
+                dims[i] = ([
+                    batch_size,
+                    num_anchors_there * self.num_classes,
+                    f_h,
+                    f_w])
+        preds = []
+        for i, pred in enumerate(preds_split):
+            preds.append(pred.view(dims[i]))
+                
+        loc_data = preds[:self.num_layers]
+        conf_data = preds[self.num_layers:]
+        out = []
+
+        for i, j in zip(loc_data,conf_data):
+            out.append(torch.cat((i, j), dim=1))
+        return out
