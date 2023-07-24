@@ -11,10 +11,10 @@ import torch.optim as optim
 import nni
 from nni.algorithms.compression.v2.pytorch.pruning import L2NormPruner, FPGMPruner, TaylorFOWeightPruner, AGPPruner, LinearPruner, LotteryTicketPruner
 
-import cod.my_pruning as my_pruning
-from cod.my_pruning_pabotnik import get_size, get_stract, rename
-from cod.ModelSpeedup import ModelSpeedup
-import cod.training as trainer
+import code.my_pruning as my_pruning
+from code.my_pruning_pabotnik import get_size, get_stract, rename
+from code.ModelSpeedup import ModelSpeedup
+import code.training as trainer
 
 since = time.time()
 acc = 0
