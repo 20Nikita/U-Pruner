@@ -615,6 +615,7 @@ def main(param):
     import training as trainer
     import yaml
     import sys
+    import copy
     config = yaml.safe_load(open('Pruning.yaml'))
     mask = config['mask']['type']
     sys.path.append(config['model']['path_to_resurs'])
@@ -643,6 +644,7 @@ def main(param):
     # Выбор алгоритма прунинга
     pruner = None
     if param.algoritm == "TaylorFOWeight":
+        m = copy.deepcopy(model)
         pruner = TaylorFOWeightPruner(model, config_list, trainer.retrainer, 
                                       traced_optimizer, trainer.criterion, 
                                       training_batches = trainer.batch_size_t)
@@ -652,6 +654,21 @@ def main(param):
     # Запуск прунинга от nni
     model, masks = pruner.compress()
     pruner._unwrap_model()
+    # print(torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0])
+    # print(masks[list(masks.keys())[0]]['weight'].shape[0])
+    # print(torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0] / masks[list(masks.keys())[0]]['weight'].shape[0])
+    # print(torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0] / masks[list(masks.keys())[0]]['weight'].shape[0] // 0.0001)
+    # print((1 - param.sparsity))
+    # print((1 - param.sparsity)// 0.0001)
+    # # Если TaylorFOWeight обрезал некоректно
+    if param.algoritm == "TaylorFOWeight" and \
+    torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0] / \
+    masks[list(masks.keys())[0]]['weight'].shape[0] // 0.0001 != (1 - param.sparsity) // 0.0001:
+        print('ERROR in TaylorFOWeight algorithm. Running the L2NormPruner algorithm.')
+        pruner = L2NormPruner(m, config_list)
+        model, masks = pruner.compress()
+        pruner._unwrap_model()
+        
     type_pruning = ""
     if mask == "None":
         # Обрезка сети на основе маски от nni
