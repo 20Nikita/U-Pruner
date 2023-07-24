@@ -1,5 +1,5 @@
 FROM nvidia/cuda:11.6.0-runtime-ubuntu20.04
-ENV DEBIAN_FRONTEND noninteractive 
+ENV DEBIAN_FRONTEND noninteractive
 ARG PYTHON_VERSION=3.8
 RUN apt-get update &&\
     apt-get install -y software-properties-common \
@@ -10,5 +10,5 @@ RUN apt-get update &&\
 COPY ./requirements.txt ./
 RUN pip install -r ./requirements.txt
 WORKDIR /workspace/proj
-COPY . .  
+COPY . .
 ENTRYPOINT ["python", "main.py"]

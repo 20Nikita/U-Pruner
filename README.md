@@ -7,7 +7,7 @@
 ## my pruning
 my_pruning - алгоритм обрезки, основанный на [NetAdapt](https://arxiv.org/abs/1804.03230). Разработан специально для генерируемых сетей алгоритмами NAS. Занимает много времени, но работает одинаково хорошо с любой архитектурой сети и степенью сжатия.
 
-Алгоритм разбивает сеть на блоки c помочью model.named_parameters(), обрезает каждый блок низкоуровневым алгоритмом TaylorFOWeight или L2Norm, до обучает и выбирает лучший по accuracy. Так по 1 блоку постепенно обрезает всю сеть. 
+Алгоритм разбивает сеть на блоки c помочью model.named_parameters(), обрезает каждый блок низкоуровневым алгоритмом TaylorFOWeight или L2Norm, до обучает и выбирает лучший по accuracy. Так по 1 блоку постепенно обрезает всю сеть.
 
 Поддерживается обрезка torch.nn.modules.conv.Conv2d, torch.nn.modules.batchnorm.BatchNorm2d, torch.nn.modules.linear.Linear.
 
@@ -89,11 +89,11 @@ LotteryTicket - многостадийный алгоритм обрезки. О
     ├── README.md
     ├── interfaces
     │   └── *
-    ├── dtools   
+    ├── dtools
     │   ├── Dockerfile
     │   ├── .dockerignore
     │   ├── docker_run.sh
-    │   └── build.sh 
+    │   └── build.sh
     ├── "exp_save" # save loog config["path"]["exp_save"] (/storage/3030/GordeevN/prj/Pruning/snp/Mypruning)
     │   ├── "model_name" config["path"]["model_name"]
     │   │    └── * # loog
@@ -116,15 +116,15 @@ LotteryTicket - многостадийный алгоритм обрезки. О
         └── dataset # dataset  (/storage_labs/db/paradigma/chest_xray/dataset_chest_xray_640_480)
             ├── *
             └── data.csv
-            
+
 ## Рекомендации
 
 ### Загрузка модели
 Для загрузки обрезанной модели нужно в interfaces/interfaces/tools.py заменить
 
     def build_net(
-        interface: OrderedDict = OrderedDict(), 
-        pretrained: bool = False, 
+        interface: OrderedDict = OrderedDict(),
+        pretrained: bool = False,
         num_classes: int = None,
     ) -> mc.Module:
         algname = interface['nas']['algname']
@@ -138,8 +138,8 @@ LotteryTicket - многостадийный алгоритм обрезки. О
 на
 
     def build_pruning(
-        interface: OrderedDict = OrderedDict(), 
-        pretrained: bool = False, 
+        interface: OrderedDict = OrderedDict(),
+        pretrained: bool = False,
         net:  mc.Module = None,
     ) -> mc.Module:
         model = net
@@ -158,8 +158,8 @@ LotteryTicket - многостадийный алгоритм обрезки. О
                 dilation = eval("model.{}".format(layer_name)).dilation
                 padding_mode = eval("model.{}".format(layer_name)).padding_mode
                 bias = eval("model.{}".format(layer_name)).bias
-                new_pam = torch.nn.Conv2d(in_channels = in_channels, out_channels = out_channels, kernel_size = kernel_size, 
-                                          stride = stride, padding = padding, dilation = dilation, groups = groups, 
+                new_pam = torch.nn.Conv2d(in_channels = in_channels, out_channels = out_channels, kernel_size = kernel_size,
+                                          stride = stride, padding = padding, dilation = dilation, groups = groups,
                                           bias = bias, padding_mode = padding_mode)
                 exec("model.{} = new_pam".format(layer_name))
             elif component['type'] == 'torch.nn.modules.batchnorm.BatchNorm2d':
@@ -168,7 +168,7 @@ LotteryTicket - многостадийный алгоритм обрезки. О
                 momentum = eval("model.{}".format(layer_name)).momentum
                 affine = eval("model.{}".format(layer_name)).affine
                 track_running_stats = eval("model.{}".format(layer_name)).track_running_stats
-                new_pam = torch.nn.BatchNorm2d(num_features, eps = eps, momentum = momentum, affine = affine, 
+                new_pam = torch.nn.BatchNorm2d(num_features, eps = eps, momentum = momentum, affine = affine,
                                                track_running_stats = track_running_stats)
                 exec("model.{} = new_pam".format(layer_name))
             elif component['type'] == 'torch.nn.modules.linear.Linear':
@@ -182,8 +182,8 @@ LotteryTicket - многостадийный алгоритм обрезки. О
         return model
 
     def build_net(
-        interface: OrderedDict = OrderedDict(), 
-        pretrained: bool = False, 
+        interface: OrderedDict = OrderedDict(),
+        pretrained: bool = False,
         num_classes: int = None,
     ) -> mc.Module:
         is_pruning = False
@@ -199,7 +199,7 @@ LotteryTicket - многостадийный алгоритм обрезки. О
         if is_pruning:
             net = build_pruning(interface=interface, pretrained=pretrained, net=net)
         return net
-    
+
 или перейти в ветку gordeev_dev в interfaces при сборе контейнера
 
 ### Варианты применения
@@ -242,7 +242,7 @@ LotteryTicket - многостадийный алгоритм обрезки. О
     'size': 0.1970215054204825,
     'val_accuracy': 0.9563218355178833,
     'time': '20h 20m 48s'}
-                            
+
 #### Мгновенный результат
 Алгоритмы [L2Norm](#l2norm) и [FPGM](#fpgm) отработают за несколько секунд. Если архитектура больше похожа на mobilenetv2 лучше использовать [L2Norm](#l2norm). С resnet больше подойдет [FPGM](#fpgm). Однако модель будет выдавать результат как необученная архитектура. Требуется дообучить с маленьким lr или установить training: True.
 
@@ -253,8 +253,8 @@ LotteryTicket - многостадийный алгоритм обрезки. О
         training: False                # Дообучить после обрезки
         gpu: 0                         # Карта для обучения
 
-[TaylorFOWeight](#taylorfoweight) имеет куда больший потенциал если требуется быстро обрезать сеть не на крошечный процент. Перед обрезкой будет пройдена 1 холостая эпоха обучения, однако результат того стоит. 
-        
+[TaylorFOWeight](#taylorfoweight) имеет куда больший потенциал если требуется быстро обрезать сеть не на крошечный процент. Перед обрезкой будет пройдена 1 холостая эпоха обучения, однако результат того стоит.
+
 #### Контролируемая по времени обрезка
 
 Время работы алгоритмов [AGP](#agp), [Linear](#linear), [LotteryTicket](#lotteryticket) составит t * (training.num_epochs + 1) * total_iteration, где t - время 1 эпохи обучения.
@@ -268,11 +268,11 @@ LotteryTicket - многостадийный алгоритм обрезки. О
         training: True                 # Дообучить после обрезки
         total_iteration: 100           # Итерации обрезки, используется в алгоритмах AGP, Linear, LotteryTicket.
         gpu: 0                         # Карта для обучения
-        
+
     training:
         num_epochs: 100
         lr: 0.00001
-        
+
 Для модели elbrus_chest_mbnet
 
     constraint: 33.333333333333336
@@ -284,16 +284,14 @@ LotteryTicket - многостадийный алгоритм обрезки. О
     val_top1: 0.9024390243902439
 Результат будет таким
 
-    'size': 0.20194015798119477, 
+    'size': 0.20194015798119477,
     'val_accuracy': 0.9477011561393738,
     'time': '3h 49m 9s'
-    
+
 Если далее запустить my_pruning с P: 0, resize_alf: True (остальные гипперпараметры совпадают с рекомендуемыми для my_pruning).
 
 Результат будет таким
 
-    'size': 0.8869792831894044, 
-    'val_accuracy': 0.9465517401695251, 
+    'size': 0.8869792831894044,
+    'val_accuracy': 0.9465517401695251,
     'time': '0h 21m 25s'
-
-       

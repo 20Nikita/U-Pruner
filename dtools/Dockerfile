@@ -3,5 +3,5 @@ RUN apt-get update
 COPY ./requirements.txt ./
 RUN pip install -r ./requirements.txt
 WORKDIR /workspace/proj
-COPY . .  
+COPY . .
 ENTRYPOINT ["python", "main.py"]

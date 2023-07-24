@@ -1,18 +1,25 @@
 import torch.nn as nn
 
+
 class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes):
         super().__init__()
         stride = 1 if inplanes == planes else 2
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.downsample = None if inplanes == planes else nn.Sequential(
+        self.downsample = (
+            None
+            if inplanes == planes
+            else nn.Sequential(
                 nn.Conv2d(inplanes, planes, kernel_size=1, stride=2, bias=False),
                 nn.BatchNorm2d(planes),
             )
+        )
 
     def forward(self, x):
         identity = x
@@ -31,7 +38,8 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
 
         return out
-        
+
+
 class resnet34(nn.Module):
     def __init__(self):
         super().__init__()
@@ -80,7 +88,7 @@ class resnet34(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = x.view(-1,512)
+        x = x.view(-1, 512)
         x = self.fc(x)
 
         return x
