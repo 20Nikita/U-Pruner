@@ -4,4 +4,4 @@ COPY ./requirements.txt ./
 RUN pip install -r ./requirements.txt
 WORKDIR /workspace/proj
 COPY . .
-ENTRYPOINT ["python", "main.py"]
+ENTRYPOINT ["python", "-m","code"]
