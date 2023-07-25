@@ -1,18 +1,26 @@
 import torch
 from torch import nn
+
+
 class BasicBlock(nn.Module):
     def __init__(self, inplanes, planes):
         super().__init__()
         stride = 1 if inplanes == planes else 2
-        self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False)
+        self.conv1 = nn.Conv2d(
+            inplanes, planes, kernel_size=3, stride=stride, padding=1, bias=False
+        )
         self.bn1 = nn.BatchNorm2d(planes)
         self.relu = nn.ReLU(inplace=True)
         self.conv2 = nn.Conv2d(planes, planes, kernel_size=3, padding=1, bias=False)
         self.bn2 = nn.BatchNorm2d(planes)
-        self.downsample = None if inplanes == planes else nn.Sequential(
+        self.downsample = (
+            None
+            if inplanes == planes
+            else nn.Sequential(
                 nn.Conv2d(inplanes, planes, kernel_size=1, stride=2, bias=False),
                 nn.BatchNorm2d(planes),
             )
+        )
 
     def forward(self, x):
         identity = x
@@ -31,7 +39,8 @@ class BasicBlock(nn.Module):
         out = self.relu(out)
 
         return out
-    
+
+
 class resnet34(nn.Module):
     def __init__(self):
         super().__init__()
@@ -80,11 +89,12 @@ class resnet34(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = x.view(-1,512)
+        x = x.view(-1, 512)
         x = self.fc(x)
 
         return x
-    
+
+
 def replace_strides_with_dilation(module, dilation_rate):
     for mod in module.modules():
         if isinstance(mod, nn.Conv2d):
@@ -92,7 +102,8 @@ def replace_strides_with_dilation(module, dilation_rate):
             mod.dilation = (dilation_rate, dilation_rate)
             kh, kw = mod.kernel_size
             mod.padding = ((kh // 2) * dilation_rate, (kh // 2) * dilation_rate)
-            
+
+
 class resnet34_encoder(resnet34):
     def __init__(self):
         super().__init__()
@@ -100,10 +111,10 @@ class resnet34_encoder(resnet34):
         del self.fc
         self.layer0 = nn.Sequential(self.conv1, self.bn1, self.relu)
         self.layer_1 = nn.Sequential(self.maxpool, self.layer1)
-        
+
     def forward(self, x):
         features = []
-        
+
         x = self.layer0(x)
         features.append(x)
         x = self.layer_1(x)
@@ -115,28 +126,40 @@ class resnet34_encoder(resnet34):
         x = self.layer4(x)
         features.append(x)
         return features
-    
+
+
 class NeckFPN(nn.Module):
-    def __init__(self, inputs = [512, 256, 128, 64, 64], out = 128):
+    def __init__(self, inputs=[512, 256, 128, 64, 64], out=128):
         super().__init__()
         self.out = out
-        self.convs1x1 = nn.ModuleList([
+        self.convs1x1 = nn.ModuleList(
+            [
                 nn.Sequential(
-                    nn.Conv2d(i,self.out,kernel_size=1,padding=0,bias=False),
-                    nn.BatchNorm2d(self.out)
-                ) for i in inputs
-            ])
-        
-        self.ups = nn.ModuleList([ nn.Upsample(mode="nearest", scale_factor=2) for i in range(len(inputs) - 1) ])
-        
+                    nn.Conv2d(i, self.out, kernel_size=1, padding=0, bias=False),
+                    nn.BatchNorm2d(self.out),
+                )
+                for i in inputs
+            ]
+        )
+
+        self.ups = nn.ModuleList(
+            [
+                nn.Upsample(mode="nearest", scale_factor=2)
+                for i in range(len(inputs) - 1)
+            ]
+        )
+
         self.act = nn.ReLU(inplace=True)
-        self.convs3x3 =nn.ModuleList([
+        self.convs3x3 = nn.ModuleList(
+            [
                 nn.Sequential(
-                    nn.Conv2d(self.out,self.out,kernel_size=3,padding=1,bias=False),
-                    nn.BatchNorm2d(self.out)
-                ) for i in range(len(inputs) - 1)
-            ])
-        
+                    nn.Conv2d(self.out, self.out, kernel_size=3, padding=1, bias=False),
+                    nn.BatchNorm2d(self.out),
+                )
+                for i in range(len(inputs) - 1)
+            ]
+        )
+
     def forward(self, input_features):
         output_features = []
         output = self.convs1x1[0](input_features[0])
@@ -151,6 +174,7 @@ class NeckFPN(nn.Module):
             skip_output = conv3x3(output)
             output_features.append(skip_output)
         return output_features
+
 
 class YOLOLayer(nn.Module):
     def __init__(
@@ -268,15 +292,13 @@ class YOLOLayer(nn.Module):
             output_filtered.append(image_output_filtered)
         return output_filtered
 
-    def forward(
-        self, output_raw: torch.Tensor
-    ):
-        #1111111111111111111111111111111111111111111111111111111111111111111111
+    def forward(self, output_raw: torch.Tensor):
+        # 1111111111111111111111111111111111111111111111111111111111111111111111
         # if self.training or not self.apply_postprocess:
         #     return output_raw
         return output_raw
-        #1111111111111111111111111111111111111111111111111111111111111111111111
-    
+        # 1111111111111111111111111111111111111111111111111111111111111111111111
+
         output = self.sigmoid(output_raw)
 
         if self.export_to_platform:
@@ -287,6 +309,7 @@ class YOLOLayer(nn.Module):
         output = self.postprocess(output)
 
         return output_raw, output
+
 
 def nms_one_class(boxes, scores, iou_threshold):
 
@@ -323,7 +346,7 @@ def nms_one_class(boxes, scores, iou_threshold):
         ix2 = x2[i]
         iy2 = y2[i]
         iarea = areas[i]
-        print(8,_i + 1, nboxes)
+        print(8, _i + 1, nboxes)
 
         for _j in range(_i + 1, nboxes):
             j = order[_j]  # another box index
@@ -426,25 +449,28 @@ class HeadDetection(nn.Module):
         self,
         n_classes,
         neck_pyramid_channels,
-        image_size = [224, 224],
-        n_levels  = 5,
-        conf_thresholds = 0.5,
-        head_anchors = [[[224, 112],[112, 224],[112, 112]],
-                       [[112, 64],[64, 112],[64, 64]],
-                       [[64, 32],[32, 64],[32, 32]],
-                       [[32, 16],[16, 16],[20, 16]],
-                       [[16, 8],[8, 16],[8, 8]]],
-        nms_iou_threshold = 0.65,
-        nms_top_k = 10,
-        use_bias = False,
-        export_to_platform = False):
-        
+        image_size=[224, 224],
+        n_levels=5,
+        conf_thresholds=0.5,
+        head_anchors=[
+            [[224, 112], [112, 224], [112, 112]],
+            [[112, 64], [64, 112], [64, 64]],
+            [[64, 32], [32, 64], [32, 32]],
+            [[32, 16], [16, 16], [20, 16]],
+            [[16, 8], [8, 16], [8, 8]],
+        ],
+        nms_iou_threshold=0.65,
+        nms_top_k=10,
+        use_bias=False,
+        export_to_platform=False,
+    ):
+
         super().__init__()
         self.levels = n_levels
         self.in_channels = neck_pyramid_channels
         self.n_classes = n_classes if n_classes > 1 else 0
         self.conf_thresholds = [conf_thresholds for _ in range(n_classes)]
-        self.strides = [2**(x+1) for x in range(n_levels)]
+        self.strides = [2 ** (x + 1) for x in range(n_levels)]
         self.anchors = torch.tensor(head_anchors)
         self.out_channels = self.anchors.shape[1] * (1 + self.n_classes + 4)
         self.iou_threshold = nms_iou_threshold
@@ -453,14 +479,23 @@ class HeadDetection(nn.Module):
         self.export_to_platform = export_to_platform
         self.image_size = image_size
         self.indices = [x for x in range(5)[::-1]]
-        self.final_convs = nn.ModuleList([
-            nn.Sequential(
-                    nn.Conv2d(self.in_channels,self.out_channels,kernel_size=3,padding=1,bias=False),
+        self.final_convs = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Conv2d(
+                        self.in_channels,
+                        self.out_channels,
+                        kernel_size=3,
+                        padding=1,
+                        bias=False,
+                    ),
                 )
                 for _ in self.strides
-        ])
+            ]
+        )
         self.apply_postprocess = True
-        self.yolo_layers = nn.ModuleList([
+        self.yolo_layers = nn.ModuleList(
+            [
                 YOLOLayer(
                     anchors=anchors,
                     n_classes=self.n_classes,
@@ -471,7 +506,9 @@ class HeadDetection(nn.Module):
                     apply_postprocess=self.apply_postprocess,
                 )
                 for stride, anchors in zip(self.strides, self.anchors)
-            ])
+            ]
+        )
+
     def forward(self, input_features):
         yolo_output = []
         for index, conv, yolo in zip(self.indices, self.final_convs, self.yolo_layers):
@@ -479,12 +516,12 @@ class HeadDetection(nn.Module):
             x = conv(x)
             x = yolo(x)
             yolo_output.append(x)
-        #1111111111111111111111111111111111111111111111111111111111111111111111
+        # 1111111111111111111111111111111111111111111111111111111111111111111111
         # if self.training or not self.apply_postprocess:
         #     # before sigmoid
         #     return yolo_output
         return yolo_output
-        #1111111111111111111111111111111111111111111111111111111111111111111111
+        # 1111111111111111111111111111111111111111111111111111111111111111111111
 
         if self.export_to_platform:
             # after sigmoid
@@ -504,12 +541,14 @@ class HeadDetection(nn.Module):
         output_nms = torch.stack(output_nms)  # batch_size x top_k x 6
         return output_raw, output_nms
 
+
 class Detect(nn.Module):
-    def __init__(self, n_classes = 12, Yolo_imput = 128, image_size = [224,224]):
+    def __init__(self, n_classes=12, Yolo_imput=128, image_size=[224, 224]):
         super().__init__()
         self.encoder = resnet34_encoder()
-        self.fpn = NeckFPN(out = Yolo_imput)
-        self.head = HeadDetection(n_classes, neck_pyramid_channels = Yolo_imput)
+        self.fpn = NeckFPN(out=Yolo_imput)
+        self.head = HeadDetection(n_classes, neck_pyramid_channels=Yolo_imput)
+
     def forward(self, x):
         features = self.encoder(x)[::-1]
         features = self.fpn(features)

@@ -13,11 +13,11 @@ model:
     anchors:
 task:
     type: classification # classification, segmentation, detection, special points
-    
+
 mask:
     type:  mask # mask or None
     sours_mask: None # list связвнных компонент или None
-    
+
 #====================== DATASET ================================|
 dataset:
     num_classes: 10
@@ -26,7 +26,7 @@ dataset:
 
 #===================== RETRAINING ==============================|
 # Используется только в My_pruning
-# Параметры дообучения сети после обрезки. 
+# Параметры дообучения сети после обрезки.
 # Вызывается количество_итераций_обрезки * Количество_блоков_сети раз
 retraining:
     num_epochs: 1
@@ -44,7 +44,7 @@ retraining:
         drop_last_v: True
         shuffle_v: False
 #====================== TRAINING ===============================|
-# Полноценное обучение (дообучение) после обрезки. 
+# Полноценное обучение (дообучение) после обрезки.
 # Вызывается 1 раз в конце работы алгоритма
 training:
     num_epochs: 10
@@ -81,4 +81,3 @@ nni_pruning:
     training: True                 # Дообучить после обрезки
     total_iteration: 10             # Итерации обрезки, спользуется в алгоритмах AGP, Linear, LotteryTicket.
     gpu: 9                         # Карта для обучения
-    

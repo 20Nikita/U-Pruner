@@ -5,61 +5,62 @@ import torch
 import numpy as np
 from torchmetrics import JaccardIndex
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
+
 try:
-    from cod.detect import get_preds, get_target, Decod
+    from cod.detect import get_preds, get_target
 except:
-    from detect import get_preds, get_target, Decod
-    
-def train_model(model, 
-                classification_criterion, 
-                optimizer, 
-                train_dataloader, 
-                val_dataloader, 
-                batch_size_t, 
-                batch_size_v, 
-                num_epochs=100,
-                N_class = 2,
-                rezim = ['T', 'V'],
-                fil = None,
-                task_tupe = "classification",
-                ssd = False):
+    from detect import get_preds, get_target
+
+
+def train_model(
+    model,
+    classification_criterion,
+    optimizer,
+    train_dataloader,
+    val_dataloader,
+    batch_size_t,
+    batch_size_v,
+    num_epochs=100,
+    N_class=2,
+    rezim=["T", "V"],
+    fil=None,
+    task_tupe="classification",
+):
     # Запомнить время начала обучения
     since = time.time()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    mass = [[],[],[]]
+    mass = [[], [], []]
     # Копировать параметры поданной модели
     best_model_wts_classification = copy.deepcopy(model.state_dict())
-    best_Loss_classification = 10000.0         # Лучший покозатель модели
+    best_Loss_classification = 10000.0  # Лучший покозатель модели
     best_epoch_classification = 0
-    best_acc = 0         # Лучший покозатель модели
+    best_acc = 0  # Лучший покозатель модели
     best_epoch_classification = 0
     pihati = ""
     tit = "\n!!!!!!!!!!!!!!!!!!!!!!!!!\n"
-    if ssd:
-        decod = Decod()
     if task_tupe == "segmentation":
         jaccard = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
     for epoch in range(num_epochs):
-        pihati += 'Epoch {}/{}'.format(epoch + 1, num_epochs) + "\n"
-        pihati += '-' * 10 + "\n"
+        pihati += "Epoch {}/{}".format(epoch + 1, num_epochs) + "\n"
+        pihati += "-" * 10 + "\n"
         f = open(fil, "w")
         f.write(pihati + "\n" + tit)
         f.close()
         if task_tupe == "detection":
-            metric = MeanAveragePrecision(box_format = 'xywh')
+            metric = MeanAveragePrecision(box_format="xywh")
         # У каждой эпохи есть этап обучения и проверки
         for phase in rezim:
-            if phase == 'T':
+            if phase == "T":
                 dataloader = train_dataloader
                 batch_size = batch_size_t
                 dataset_sizes = len(train_dataloader) * batch_size
                 model.train()  # Установить модель в режим обучения
-            elif phase == 'V':
+            elif phase == "V":
                 dataloader = val_dataloader
                 batch_size = batch_size_v
                 dataset_sizes = len(val_dataloader) * batch_size
-                model.eval()   #Установить модель в режим оценки
-            
+                model.eval()  # Установить модель в режим оценки
+
             # Обнуление параметров
             running_classification_loss = 0.0
             running_corrects = 0
@@ -68,15 +69,20 @@ def train_model(model,
             for inputs, classification_label in dataloader:
                 iiter += 1
                 f = open(fil, "w")
-                f.write('Epoch {}/{}'.format(epoch + 1, num_epochs) + "\n" 
-                        + str(iiter)+"/"+str(int(len(dataloader))) + "\n" 
-                        + "\n" 
-                        + pihati + "\n" 
-                        + tit)
+                f.write(
+                    "Epoch {}/{}".format(epoch + 1, num_epochs)
+                    + "\n"
+                    + str(iiter)
+                    + "/"
+                    + str(int(len(dataloader)))
+                    + "\n"
+                    + "\n"
+                    + pihati
+                    + "\n"
+                    + tit
+                )
                 f.close()
-                
-                    
-                    
+
                 # считать все на видеокарте или ЦП
                 inputs = inputs.to(device)
                 if task_tupe != "detection":
@@ -85,14 +91,15 @@ def train_model(model,
                 optimizer.zero_grad()
                 # forward
                 # Пока градиент можно пощитать, шитать только на учимся
-                with torch.set_grad_enabled(phase == 'T'):
+                with torch.set_grad_enabled(phase == "T"):
                     # Проход картинок через модель
                     classification = model(inputs)
-                    if ssd:
-                        classification = decod.decod(classification)
-                    loss = classification_criterion(classification, classification_label)
+
+                    loss = classification_criterion(
+                        classification, classification_label
+                    )
                     # Если учимся
-                    if phase == 'T':
+                    if phase == "T":
                         # Вычислить градиенты
                         loss.backward()
                         # Обновить веса
@@ -102,46 +109,53 @@ def train_model(model,
                 if task_tupe == "classification":
                     # Получить индексы максимальных элементов
                     _, preds = torch.max(classification, 1)
-                    running_corrects += torch.sum(preds == classification_label.data)# Колличество правильных ответов
+                    running_corrects += torch.sum(
+                        preds == classification_label.data
+                    )  # Колличество правильных ответов
                 elif task_tupe == "segmentation":
                     for x, y in zip(classification, classification_label):
                         x = torch.argmax(x, dim=0)
                         y = torch.argmax(y, dim=0)
                         running_corrects += jaccard(x, y)
                 elif task_tupe == "detection":
-                    metric.update(get_preds(classification, k = 10, alf = 0.01), get_target(classification_label))
+                    metric.update(
+                        get_preds(classification, k=10, alf=0.01),
+                        get_target(classification_label),
+                    )
             # Усреднить статистику
             epoch_classification_loss = running_classification_loss / dataset_sizes
-            running_classification_loss/= dataset_sizes
+            running_classification_loss /= dataset_sizes
             if task_tupe != "detection":
                 epoch_acc = running_corrects / dataset_sizes
             else:
                 metrics = metric.compute()
-                epoch_acc = metrics['map_50']
-            pihati += '{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc)
+                epoch_acc = metrics["map_50"]
+            pihati += "{}_Loss: {:.4f} Acc: {:.4f}".format(
+                phase, epoch_classification_loss, epoch_acc
+            )
             pihati += "\n"
             f = open(fil, "w")
-            f.write(pihati + "\n" +  tit)
+            f.write(pihati + "\n" + tit)
             f.close()
-            
-#             print('{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc))
-            if phase == 'V':
+
+            #             print('{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc))
+            if phase == "V":
                 mass[0].append(epoch)
                 mass[1].append(epoch_acc.item())
                 mass[2].append(epoch_classification_loss)
 
             # Копироование весов успешной модели на вэйле
-            if (phase == 'V') and epoch_classification_loss < best_Loss_classification:
+            if (phase == "V") and epoch_classification_loss < best_Loss_classification:
                 best_Loss_classification = epoch_classification_loss
                 best_model_wts_classification = copy.deepcopy(model.state_dict())
                 best_epoch_classification = epoch + 1
-                
+
             # Копироование весов успешной модели на вэйле
-            if (phase == 'V') and epoch_acc > best_acc:
+            if (phase == "V") and epoch_acc > best_acc:
                 best_acc = epoch_acc
                 best_model_wts_acc = copy.deepcopy(model.state_dict())
                 best_epoch_acc = epoch + 1
-                
+
     # Конечное время и печать времени работы
     time_elapsed = time.time() - since
     overfit_model = model
