@@ -8,7 +8,7 @@ parser.add_argument("-c", "--config", default = DEFAULT_CONFIG_PATH)
 args = parser.parse_args()
 config = yaml.safe_load(open(args.config))
 config = Config(**config)
-os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config["model"]["gpu"])
+os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config.model.gpu)
 
 
 def main(config: Config):
@@ -33,7 +33,49 @@ def main(config: Config):
     import code.training as trainer
 
     ALGORITHMS = dict(
-        L2Norm = lambda model, confgi_list, trainer, retrainer, trainer.criterion : return L2NormPruner(model, config_list) 
+        L2Norm = lambda model, config_list, pruning_params : L2NormPruner(
+            model, 
+            config_list
+            ),
+        FPGM = lambda model, config_list, pruning_params : FPGMPruner(
+            model, 
+            config_list
+            ),
+        TaylorFOWeight = lambda model, config_list, pruning_params : TaylorFOWeightPruner(
+            model,
+            config_list,
+            trainer.retrainer,
+            traced_optimizer,
+            trainer.criterion,
+            training_batches=config.retraining.dataLoader.batch_size_t
+            ),
+        AGP = lambda model, config_list, pruning_params : AGPPruner(
+            model, 
+            config_list,
+            pruning_algorithm="taylorfo",
+            total_iteration=config.nni_pruning.total_iteration,
+            finetuner=trainer.finetuner,
+            log_dir=os.path.join(config.path.exp_save , config.path.model_name),
+            pruning_params=pruning_params
+            ),
+        Linear = lambda model, config_list, pruning_params : LinearPruner(
+            model,
+            config_list,
+            pruning_algorithm="taylorfo",
+            total_iteration=config.nni_pruning.total_iteration,
+            finetuner=trainer.finetuner,
+            log_dir=os.path.join(config.path.exp_save , config.path.model_name),
+            pruning_params=pruning_params,
+            ),
+        LotteryTicket = lambda model, config_list, pruning_params : LotteryTicketPruner(
+            model,
+            config_list,
+            pruning_algorithm="taylorfo",
+            total_iteration=config.nni_pruning.total_iteration,
+            finetuner=trainer.finetuner,
+            log_dir=os.path.join(config.path.exp_save , config.path.model_name),
+            pruning_params=pruning_params,
+            )
     )
 
     config: Config
@@ -46,46 +88,44 @@ def main(config: Config):
     if not os.path.exists(snp):
         os.makedirs(snp)
 
-    type_save_load = config["model"]["type_save_load"]
-    if type_save_load == "interface":
+    if config.model.type_save_load == "interface":
         from interfaces.tools import *
 
         interface = load_interface(
-            path_to_interface=config["model"]["path_to_resurs"],
-            load_name=config["model"]["name_resurs"],
+            path_to_interface=config.model.path_to_resurs,
+            load_name=config.model.name_resurs,
         )
         model = build_net(interface=interface, pretrained=True)
         # model = build_net(interface=interface, pretrained = False)
-    elif type_save_load == "pth":
+    elif config.model.type_save_load == "pth":
         import sys
-
-        sys.path.append(config["model"]["path_to_resurs"])
+        sys.path.append(config.model.path_to_resurs)
         model = torch.load(
-            f"{config['model']['path_to_resurs']}/{config['model']['name_resurs']}.pth"
+            f"{config.model.path_to_resurs}/{config.model.name_resurs}.pth"
         )
 
-    print(config["algorithm"])
+    print(config.algorithm)
 
     if config["algorithm"] == "My_pruning":
         # Кастыль для сегментации в офе
-        if type_save_load == "interface" and config["task"]["type"] == "segmentation":
+        if config.model.type_save_load == "interface" and config.task.type == "segmentation":
             model.backbone_hooks._clear_hooks()
         torch.save(model, snp + "/" + "orig_model.pth")
         # Кастыль для сегментации в офе
-        if type_save_load == "interface" and config["task"]["type"] == "segmentation":
+        if config.model.type_save_load == "interface" and config.task.type == "segmentation":
             model.backbone_hooks._attach_hooks()
         start_size_model = get_size(model)
         del model
         my_pruning.my_pruning(start_size_model=start_size_model)
         _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = (
             open(
-                config["path"]["exp_save"] + "/" + config["path"]["model_name"] + "_log.txt"
+                config.path.exp_save + "/" + config.path.model_name + "_log.txt"
             )
             .readlines()[-1]
             .split(" ")
         )
         model = torch.load(
-            f"{config['path']['exp_save']}/{config['path']['model_name']}/{config['path']['model_name']}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth"
+            f"{config.path.exp_save}/{config.path.model_name}/{config.path.model_name}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth"
         )
 
     else:
@@ -98,50 +138,8 @@ def main(config: Config):
             "criterion": trainer.criterion,
             "training_batches": config["dataset"]["dataLoader"]["batch_size_t"],
         }
-
-        if config["algorithm"] == "L2Norm":
-            pruner = L2NormPruner(model, config_list)
-        elif config["algorithm"] == "FPGM":
-            pruner = FPGMPruner(model, config_list)
-        elif config["algorithm"] == "TaylorFOWeight":
-            pruner = TaylorFOWeightPruner(
-                model,
-                config_list,
-                trainer.retrainer,
-                traced_optimizer,
-                trainer.criterion,
-                training_batches=config["dataset"]["dataLoader"]["batch_size_t"],
-            )
-        elif config["algorithm"] == "AGP":
-            pruner = AGPPruner(
-                model,
-                config_list,
-                pruning_algorithm="taylorfo",
-                total_iteration=config["nni_pruning"]["total_iteration"],
-                finetuner=trainer.finetuner,
-                log_dir=snp,
-                pruning_params=pruning_params,
-            )
-        elif config["algorithm"] == "Linear":
-            pruner = LinearPruner(
-                model,
-                config_list,
-                pruning_algorithm="taylorfo",
-                total_iteration=config["nni_pruning"]["total_iteration"],
-                finetuner=trainer.finetuner,
-                log_dir=snp,
-                pruning_params=pruning_params,
-            )
-        elif config["algorithm"] == "LotteryTicket":
-            pruner = LotteryTicketPruner(
-                model,
-                config_list,
-                pruning_algorithm="taylorfo",
-                total_iteration=config["nni_pruning"]["total_iteration"],
-                finetuner=trainer.finetuner,
-                log_dir=snp,
-                pruning_params=pruning_params,
-            )
+        pruner = ALGORITHMS[config["algorithm"]](model, config_list, pruning_params)
+        
         if (
             config["algorithm"] == "L2Norm"
             or config["algorithm"] == "FPGM"
@@ -153,16 +151,16 @@ def main(config: Config):
             _, model, masks, _, _ = pruner.get_best_result()
         pruner._unwrap_model()
         model = ModelSpeedup(model, masks).to(device)
-        if config["nni_pruning"]["training"]:
-            optimizer = optim.Adam(model.parameters(), lr=config["training"]["lr"])
+        if config.nni_pruning.training:
+            optimizer = optim.Adam(model.parameters(), lr=config.training.lr)
             model, loss, acc, st, time_elapsed2 = trainer.trainer(
                 model,
                 optimizer,
                 trainer.criterion,
-                num_epochs=config["training"]["num_epochs"],
+                num_epochs=config.training.num_epochs,
             )
 
-    if type_save_load == "interface":
+    if config.model.type_save_load == "interface":
         model_orig = build_net(interface=interface)
         model_prun = model
         stract1 = get_stract(model_orig)
@@ -170,13 +168,13 @@ def main(config: Config):
 
         m = copy.deepcopy(model_prun)
         mo = copy.deepcopy(model_orig)
-        if type_save_load == "interface" and config["task"]["type"] == "segmentation":
+        if config.model.type_save_load == "interface" and config["task"]["type"] == "segmentation":
             m.backbone_hooks._attach_hooks()
             mo.backbone_hooks._attach_hooks()
         size = get_size(m) / get_size(mo)
         params = model_prun.state_dict()
-        if ("pruning" in interface) and len(interface["pruning"]["summary"]["resize"]):
-            resize = interface["pruning"]["summary"]["resize"]
+        if ("pruning" in interface) and len(interface.pruning.summary.resize):
+            resize = interface.pruning.summary.resize
         else:
             resize = []
             interface["pruning"] = {}
@@ -210,7 +208,10 @@ def main(config: Config):
             interface=interface,
             name_component=component,
             summary=summary,
-            path_to_interface=config["model"]["path_to_resurs"],
+            path_to_interface=config.model.path_to_resurs,
         )
-    elif type_save_load == "pth":
-        torch.save(model, f"{config['model']['path_to_resurs']}/rezalt.pth")
+    elif config.model.type_save_load == "pth":
+        torch.save(model, f"{config.model.path_to_resurs}/rezalt.pth")
+
+if __name__ == "__main__":
+    main(config)
