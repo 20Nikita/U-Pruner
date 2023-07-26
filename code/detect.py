@@ -16,15 +16,23 @@ import albumentations.pytorch as Ap
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 
+from .constants import DEFAULT_CONFIG_PATH, Config
+from argparse import ArgumentParser
+parser = ArgumentParser()
+parser.add_argument("-c", "--config", default = DEFAULT_CONFIG_PATH)
+
+args = parser.parse_args()
+config = yaml.safe_load(open(args.config))
+config = Config(**config)
+
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-config = yaml.safe_load(open('Pruning.yaml'))
-N_class = config['dataset']['num_classes']
-head_anchors = config['model']['anchors'] 
+N_class = config.dataset.num_classes
+head_anchors = config.model.anchors
 D_SP = []
-if config['task']['type'] == 'detection' and config['task']['detection'] == 'ssd':
-    for i in config['model']['feature_maps_w']:
-        D_SP.append(config['model']['size'][0] / i)
+if config.task.type == 'detection' and config.task.detection == 'ssd':
+    for i in config.model.feature_maps_w:
+        D_SP.append(config.model.size[0] / i)
 
 
 def get_ransforms(width, height):
@@ -123,7 +131,7 @@ def get_component(label):
                 m = km
                 mi =i
                 mj =j
-        if config['task']['detection'] == 'ssd':
+        if config.task.detection == 'ssd':
             SP = D_SP[mi]
         else:
             SP = 2**(mi+1)
@@ -146,7 +154,7 @@ def get_pred(out_model, k = 10, alf = 0.2, iou_threshold = 0):
                 mj= i.item() % len(head_anchors[mi])
                 a= i.item() // len(head_anchors[mi]) % sh
                 b= i.item() // len(head_anchors[mi]) // sh
-                if config['task']['detection'] == 'ssd':
+                if config.task.detection == 'ssd':
                     SP = D_SP[mi]
                 else:
                     SP = 2**(mi+1)
@@ -224,19 +232,19 @@ def Loss(out, labels):
 
 class Decod():
     def __init__(self):
-        self.num_classes = config['dataset']['num_classes'] + 1
-        self.num_layers = len(config['model']['aspect_ratios'])
+        self.num_classes = config.dataset.um_classes + 1
+        self.num_layers = len(config.model.aspect_ratios)
         self.init_sizes = [0]*(self.num_layers*2)
         for i in range(len(self.init_sizes)):
             if i < len(self.init_sizes)/2:  # loc feature map sizes
-                num_anchors_there = len(config['model']['aspect_ratios'][i])*2 + 2
-                f_h = config['model']['feature_maps_h'][i]
-                f_w = config['model']['feature_maps_w'][i]
+                num_anchors_there = len(config.model.aspect_ratios[i])*2 + 2
+                f_h = config.model.feature_maps_h[i]
+                f_w = config.model.feature_maps_w[i]
                 self.init_sizes[i] = num_anchors_there * 4 * f_h * f_w
             else:  # conf feature map sizes
-                num_anchors_there = len(config['model']['aspect_ratios'][i % self.num_layers])*2 + 2
-                f_h = config['model']['feature_maps_h'][i % self.num_layers]
-                f_w = config['model']['feature_maps_w'][i % self.num_layers]
+                num_anchors_there = len(config.model.aspect_ratios[i % self.num_layers])*2 + 2
+                f_h = config.model.feature_maps_h[i % self.num_layers]
+                f_w = config.model.feature_maps_w[i % self.num_layers]
                 self.init_sizes[i] = num_anchors_there * self.num_classes * f_h * f_w
 
 
@@ -246,18 +254,18 @@ class Decod():
         batch_size = predictions.shape[0]
         for i in range(len(dims)):
             if i < len(dims)/2:  # loc feature map shapes
-                num_anchors_there = len(config['model']['aspect_ratios'][i])*2 + 2
-                f_h = config['model']['feature_maps_h'][i]
-                f_w = config['model']['feature_maps_w'][i]
+                num_anchors_there = len(config.model.aspect_ratios[i])*2 + 2
+                f_h = config.model.feature_maps_h[i]
+                f_w = config.model.feature_maps_w[i]
                 dims[i] = ([
                     batch_size,
                     num_anchors_there * 4,
                     f_h,
                     f_w])
             else:  # conf feature map shapes
-                num_anchors_there = len(config['model']['aspect_ratios'][i % self.num_layers])*2 + 2
-                f_h = config['model']['feature_maps_h'][i % self.num_layers]
-                f_w = config['model']['feature_maps_w'][i % self.num_layers]
+                num_anchors_there = len(config.model.aspect_ratios[i % self.num_layers])*2 + 2
+                f_h = config.model.feature_maps_h[i % self.num_layers]
+                f_w = config.model.feature_maps_w[i % self.num_layers]
                 dims[i] = ([
                     batch_size,
                     num_anchors_there * self.num_classes,

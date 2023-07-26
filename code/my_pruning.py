@@ -6,11 +6,8 @@ def potok(self_ind,cuda,load,name_sloi,sparsity,orig_size,iterr,algoritm):
     --cuda {} --load {} --name_sloi {} --sparsity {} --orig_size {} --iterr {} --algoritm {}\
     '.format(self_ind,cuda,load,name_sloi,sparsity,orig_size,iterr,algoritm)], shell=True)
 
-def my_pruning(start_size_model):
+def my_pruning(start_size_model, config):
     import os
-    import yaml
-    config = yaml.safe_load(open('Pruning.yaml'))
-    os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config['my_pruning']['cart'][0])
     import torch
     import torch.optim as optim
     import time 
@@ -21,28 +18,28 @@ def my_pruning(start_size_model):
     import cod.training as trainer
     from cod.my_pruning_pabotnik import get_size, get_stract, rename, get_mask
     
-    lr_training     = config['training']['lr']
-    N_it_ob         = config['training']['num_epochs']
+    lr_training     = config.training.lr
+    N_it_ob         = config.training.num_epochs
     
-    load            = config['my_pruning']['restart']['load']
-    start_iteration = config['my_pruning']['restart']['start_iteration']
-    alf             = config['my_pruning']['alf']
-    P               = config['my_pruning']['P']
-    cart            = config['my_pruning']['cart'] 
-    delta_crop      = config['my_pruning']['delta_crop'] 
-    resize_alf      = config['my_pruning']['resize_alf'] 
-    iskl            = config['my_pruning']['iskl'] 
-    algoritm        = config['my_pruning']['algoritm'] 
-    snp             = config['path']['exp_save'] + "/" + config['path']['model_name']
-    exp_save        = config['path']['exp_save']
-    modelName       = config['path']['model_name']
-    mask            = config['mask']['type']
-    sours_mask      = config['mask']['sours_mask']
+    load            = config.my_pruning.restart.load
+    start_iteration = config.my_pruning.restart.start_iteration
+    alf             = config.my_pruning.alf
+    P               = config.my_pruning.P
+    cart            = config.my_pruning.cart 
+    delta_crop      = config.my_pruning.delta_crop 
+    resize_alf      = config.my_pruning.resize_alf 
+    iskl            = config.my_pruning.iskl 
+    algoritm        = config.my_pruning.algoritm 
+    snp             = config.path.exp_save + "/" + config.path.model_name
+    exp_save        = config.path.exp_save
+    modelName       = config.path.model_name
+    mask            = config.mask.type
+    sours_mask      = config.mask.sours_mask
     
     since = time.time()
     model = torch.load(load)
     # Кастыль для сегментации в офе
-    if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+    if config.model.type_save_load == 'interface' and config.task.type == "segmentation":
         model.backbone_hooks._attach_hooks()
         
     if mask == "mask":
@@ -86,7 +83,7 @@ def my_pruning(start_size_model):
                             print(strr[-2])
                             model = torch.load(load)
                             # Кастыль для сегментации в офе
-                            if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+                            if config.model.type_save_load == 'interface' and config.task.type == "segmentation":
                                 model.backbone_hooks._attach_hooks()
         if len(parametri):
             size_model = get_size(copy.deepcopy(model))                    
@@ -94,7 +91,7 @@ def my_pruning(start_size_model):
             model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
             load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
             # Кастыль для сегментации в офе
-            if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+            if config.model.type_save_load == 'interface' and config.task.type == "segmentation":
                 model.backbone_hooks._clear_hooks()
             torch.save(model,load)
             f = open(exp_save + "/" + modelName + "_log.txt", "a")
@@ -184,7 +181,7 @@ def my_pruning(start_size_model):
         model = torch.load(load)
         m = copy.deepcopy(model)
         # Кастыль для сегментации в офе
-        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        if config.model.type_save_load == 'interface' and config.task.type == "segmentation":
             model.backbone_hooks._attach_hooks()
             m.backbone_hooks._attach_hooks()
             
@@ -194,7 +191,7 @@ def my_pruning(start_size_model):
         model, loss, acc, st, time_elapsed2 = trainer.trainer(model, optimizer, trainer.criterion, num_epochs = N_it_ob, ind = f"it{it}")
         load = snp + "/" + modelName + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(it,acc,size_model/start_size_model)
         # Кастыль для сегментации в офе
-        if config['model']['type_save_load'] == 'interface' and config['task']['type'] == "segmentation":
+        if config.model.type_save_load == 'interface' and config.task.type == "segmentation":
             model.backbone_hooks._clear_hooks()
         torch.save(model,load)
         stract = get_stract(model)

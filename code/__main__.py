@@ -106,7 +106,7 @@ def main(config: Config):
 
     print(config.algorithm)
 
-    if config["algorithm"] == "My_pruning":
+    if config.algorithm == "My_pruning":
         # Кастыль для сегментации в офе
         if config.model.type_save_load == "interface" and config.task.type == "segmentation":
             model.backbone_hooks._clear_hooks()
@@ -116,7 +116,7 @@ def main(config: Config):
             model.backbone_hooks._attach_hooks()
         start_size_model = get_size(model)
         del model
-        my_pruning.my_pruning(start_size_model=start_size_model)
+        my_pruning.my_pruning(start_size_model=start_size_model, config = config)
         _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = (
             open(
                 config.path.exp_save + "/" + config.path.model_name + "_log.txt"
@@ -141,9 +141,9 @@ def main(config: Config):
         pruner = ALGORITHMS[config["algorithm"]](model, config_list, pruning_params)
         
         if (
-            config["algorithm"] == "L2Norm"
-            or config["algorithm"] == "FPGM"
-            or config["algorithm"] == "TaylorFOWeight"
+            config.algorithm == "L2Norm"
+            or config.algorithm == "FPGM"
+            or config.algorithm == "TaylorFOWeight"
         ):
             masked_model, masks = pruner.compress()
         else:

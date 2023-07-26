@@ -5,10 +5,7 @@ import torch
 import numpy as np
 from torchmetrics import JaccardIndex
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
-try:
-    from cod.detect import get_preds, get_target, Decod
-except:
-    from detect import get_preds, get_target, Decod
+from detect import get_preds, get_target, Decod
     
 def train_model(model, 
                 classification_criterion, 
