@@ -1,4 +1,4 @@
-FROM paradigma_base:v0
+FROM paradigma/base:0.2p
 RUN apt-get update
 COPY ./requirements.txt ./
 RUN pip install -r ./requirements.txt

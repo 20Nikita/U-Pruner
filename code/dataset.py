@@ -10,12 +10,12 @@ from torchvision import transforms
 import albumentations as A
 import albumentations.pytorch as Ap
 
-from .constants import DEFAULT_CONFIG_PATH, Config
+from constants import DEFAULT_CONFIG_PATH, Config
 from argparse import ArgumentParser
-parser = ArgumentParser()
-parser.add_argument("-c", "--config", default = DEFAULT_CONFIG_PATH)
 
-args = parser.parse_args()
+parser = ArgumentParser()
+parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+args, unknown = parser.parse_known_args()
 config = yaml.safe_load(open(args.config))
 config = Config(**config)
 

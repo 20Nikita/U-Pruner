@@ -1,19 +1,19 @@
 import torch
 import copy
-from cod.my_pruning_pabotnik import get_stract, compres2
+from my_pruning_pabotnik import get_stract  # , compres2
 
 
-def pruning_type(model, masks, type_pruning="defolt"):
-    device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    if type_pruning == "defolt":
-        compres2(model, masks)
-    elif type_pruning == "ofa":
-        compres2(model, masks, ofa=True)
-    elif type_pruning == "total":
-        compres2(model, masks, ofa=True, stop=False)
-    model.to(device)
-    model(torch.rand(1, 3, 640, 480).to(device))
-    return model
+# def pruning_type(model, masks, type_pruning="defolt"):
+#     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+#     if type_pruning == "defolt":
+#         compres2(model, masks)
+#     elif type_pruning == "ofa":
+#         compres2(model, masks, ofa=True)
+#     elif type_pruning == "total":
+#         compres2(model, masks, ofa=True, stop=False)
+#     model.to(device)
+#     model(torch.rand(1, 3, 640, 480).to(device))
+#     return model
 
 
 def ModelSpeedup(model, masks):

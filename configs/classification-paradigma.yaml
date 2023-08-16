@@ -1,22 +1,22 @@
 ####################### PRUNING SETTINGS ############################
 path:
     exp_save: /workspace/snp           # Путь к каталогу для сохранения промежуточных результатов, мусора, хэша
-    model_name: ImageNette_10     # Название эксперимента
+    modelName: ImageNette_10_2     # Название эксперимента
 
 #====================== MODEL ==================================|
 model:
     type_save_load: interface # interface - загрузка и сохранение в интерфейс, pth - загрузка модели и сохранение в формате pth.
-    path_to_resurs: /workspace/proj/shared/results # Путь к каталогу с interface.pt если type_save_load = interface. К model.pth если type_save_load = pth
+    path_to_resurs: /workspace/prj/Pruning/start/ToNikita/classification_10cls # Путь к каталогу с interface.pt если type_save_load = interface. К model.pth если type_save_load = pth
     name_resurs: interface
     size: [224,224]
     gpu: 9 # карта для main процесса прунинга
-    anchors: [[[16, 8],[8, 16],[8, 8]],
-             [[32, 16],[16, 16],[20, 16]],
-             [[64, 32],[32, 64],[32, 32]],
-             [[112, 64],[64, 112],[64, 64]],
-             [[224, 112],[112, 224],[112, 112]]]
+    anchors:
+    feature_maps_w:
+    feature_maps_h:
+    aspect_ratios:
 task:
     type: classification # classification, segmentation, detection, special points
+    detection:
 
 mask:
     type:  mask # mask or None
@@ -27,6 +27,8 @@ dataset:
     num_classes: 10
     annotation_path: /workspace/db_labs/paradigma/ImageNette_10/ImageNette_224_224
     annotation_name: data.csv
+    annotation_name_train:
+    annotation_name_val:
 
 #===================== RETRAINING ==============================|
 # Используется только в My_pruning
@@ -36,13 +38,13 @@ retraining:
     num_epochs: 1
     lr: 0.00001
     dataLoader:
-        batch_size_t: 10
+        batch_size_t: 100
         num_workers_t: 0
         pin_memory_t: True
         drop_last_t: True
         shuffle_t: True
 
-        batch_size_v: 10
+        batch_size_v: 100
         num_workers_v: 0
         pin_memory_v: True
         drop_last_v: True
@@ -51,7 +53,7 @@ retraining:
 # Полноценное обучение (дообучение) после обрезки.
 # Вызывается 1 раз в конце работы алгоритма
 training:
-    num_epochs: 10
+    num_epochs: 1
     lr: 0.00001
     dataLoader:
         batch_size_t: 100
@@ -78,7 +80,7 @@ my_pruning:
     delta_crop: 0.1               # Сколько % от текущей свертки резать за 1 итерацию 0.1->(100*100*7*7)->(90->100*7*7)
     restart:
         start_iteration: 0                                      # Итерация с которой продолжить работу (default: 0)
-        load: /workspace/snp/ImageNette_10/orig_model.pth  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth")
+        load: /workspace/snp/ImageNette_10_2/orig_model.pth  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth")
 #==================== nni_pruning ==============================|
 nni_pruning:
     P: 0.5                         # Сколько отрезать от сети (Пока основывается на ptflops.get_model_complexity_info)
