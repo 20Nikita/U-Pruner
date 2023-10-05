@@ -52,159 +52,236 @@ def get_stract(model):
     return stact
 
 
-def get_mask(model):
+### Функции для получения мески
+# Получить следующие элементы в графе graf, после текущего tek_point
+def getNextElements(tek_point, graf):
+    rez = []
+    for candidate in graf:
+        args = candidate.args
+        # Кастыль для операции cat, torch.fx воспренимает его аргументы как лист.
+        if isinstance(args[0], torch.fx.immutable_collections.immutable_list):
+            args = args[0]
+        for arg in args:
+            if arg == tek_point:
+                rez.append(candidate)
+                break
+    return rez
+
+
+# Получить элементы в графе graf, стоящие перед tek_point
+def getPreviousElements(tek_point, graf):
+    rez = []
+    for candidate in tek_point.args:
+        rez.append(candidate)
+    return rez
+
+
+# Проверка на то, что этот элемент конечный
+def endPoint(tek_point, model):
+    if tek_point.name == "output":
+        return True
+    if tek_point.op != "call_module":
+        return False
+    submodule = model.get_submodule(tek_point.target)
+    if (
+        isinstance(submodule, torch.nn.Conv2d)
+        and submodule.groups == 1
+        or isinstance(submodule, torch.nn.Linear)
+    ):
+        return True
+    else:
+        return False
+
+
+# Получить список из названия элемента и с какой стороны его резать
+def getTarget(tek_point, model, bool_niz):
+    if tek_point.op == "call_module":
+        submodule = model.get_submodule(tek_point.target)
+        if bool_niz:
+            if isinstance(submodule, torch.nn.Conv2d) and submodule.groups == 1:
+                return [str(tek_point.target), 1]
+            elif isinstance(submodule, torch.nn.Linear):
+                return [str(tek_point.target), 0]
+            elif isinstance(submodule, torch.nn.Conv2d) or isinstance(
+                submodule, torch.nn.BatchNorm2d
+            ):
+                return [str(tek_point.target), 0]
+        else:
+            if isinstance(submodule, torch.nn.Conv2d) and submodule.groups == 1:
+                return [str(tek_point.target), 0]
+            elif isinstance(submodule, torch.nn.Linear):
+                return [str(tek_point.target), 1]
+            elif isinstance(submodule, torch.nn.Conv2d) or isinstance(
+                submodule, torch.nn.BatchNorm2d
+            ):
+                return [str(tek_point.target), 0]
+
+
+# обьединить листы
+def add(spisok, rez_recurs):
+    if rez_recurs != None:
+        spisok += rez_recurs
+
+
+# Вызов следующей рекурсии, учитывая направление движения
+def Add(spisok, tek_point, graf, model, bool_niz, glob, stops, isprint):
+    s = "\t"
+    if bool_niz:
+        for el in getNextElements(tek_point, graf):
+            if isprint:
+                print(
+                    f"{s*glob}Вниз  el = {el}, tek_point = {tek_point}, elements = {getNextElements(tek_point,graf)}"
+                )
+            add(
+                spisok,
+                recurs(el, graf, model, bool_niz, tek_point, glob + 1, stops, isprint),
+            )
+    else:
+        for el in getPreviousElements(tek_point, graf):
+            if isprint:
+                print(
+                    f"{s*glob}Вверх el = {el}, tek_point = {tek_point}, elements = {getPreviousElements(tek_point,graf)}"
+                )
+            add(
+                spisok,
+                recurs(el, graf, model, bool_niz, tek_point, glob + 1, stops, isprint),
+            )
+
+
+# Удалить дублирующиеся элементы в листе
+def deletDublicat(spisok):
+    rezalt = []
+    for i in spisok:
+        if not i in rezalt:
+            rezalt.append(i)
+    return rezalt
+
+
+# Рекурсивный обход модели для получения взаимосвязанных элементов
+def recurs(
+    tek_point,
+    graf,
+    model,
+    bool_niz: bool = True,
+    pred_point=None,
+    glob=0,
+    stops=[],
+    isprint=False,
+    self_pass=False,
+):
+    spisok = []
+    s = "\t"
+    if isprint:
+        print(f"{s*glob}Name = {tek_point}, stops = {stops}")
+    if glob > 30:
+        return spisok
+    if tek_point.name in stops:
+        if isprint:
+            print(f"{s*glob}STOP name = {tek_point.name}")
+        return spisok
+    if isinstance(tek_point, torch.fx.node.Node):
+        if len(tek_point.args) > 1:
+            for el in tek_point.args:
+                if isprint:
+                    print(
+                        f"{s*glob}add: el = {el}, bool_niz = {bool_niz}, tek_point = {tek_point}, args: {tek_point.args}"
+                    )
+                if isinstance(el, torch.fx.node.Node) and pred_point != el:
+                    if not endPoint(el, model):
+                        if isprint:
+                            print(
+                                f"{s*glob}!!!, el = {el}, tek_point = {tek_point}, bool_niz = {bool_niz}"
+                            )
+                        add(
+                            spisok,
+                            recurs(
+                                el,
+                                graf,
+                                model,
+                                bool_niz,
+                                tek_point,
+                                glob + 1,
+                                stops + [tek_point.name],
+                                isprint,
+                                True,
+                            ),
+                        )
+                    if isprint:
+                        print(
+                            f"{s*glob}el = {el}, tek_point = {tek_point}, bool_niz = {not bool_niz}"
+                        )
+                    add(
+                        spisok,
+                        recurs(
+                            el,
+                            graf,
+                            model,
+                            not bool_niz,
+                            tek_point,
+                            glob + 1,
+                            stops + [tek_point.name],
+                            isprint,
+                        ),
+                    )
+            if isprint:
+                print(
+                    f"{s*glob}add_prodol: tek_point = {tek_point}, bool_niz = {bool_niz}, args: {tek_point.args}"
+                )
+            Add(
+                spisok,
+                tek_point,
+                graf,
+                model,
+                bool_niz,
+                glob,
+                stops + [tek_point.name],
+                isprint,
+            )
+            spisok = deletDublicat(spisok)
+            return spisok
+        else:
+            if endPoint(tek_point, model) and pred_point != None:
+                target = getTarget(tek_point, model, bool_niz)
+                if isprint:
+                    print(f"{s*glob}End {target}")
+                if target:
+                    spisok.append(target)
+                return spisok
+            else:
+                Add(spisok, tek_point, graf, model, bool_niz, glob, stops, isprint)
+            if not self_pass:
+                target = getTarget(tek_point, model, bool_niz)
+                if target:
+                    spisok.append(target)
+            return spisok
+
+
+# Получение маски взаимосвязанных элементов
+def get_mask(model, isPrint1=False, isPrint2=False):
     # Получить граф модели
     gm = torch.fx.symbolic_trace(model)
     nodes = []  # Имена нод в формате torch.fx
-    crops = (
-        []
-    )  # Список из списков взаимосвязанных слоёв и стороны с которой их нужно резать с полноценными свертками или линейными слоями в начале
+    crops = []
     for n in gm.graph.nodes:
         if len(n.args) > 0:
             nodes.append(n)
-    # Добавить компоненту, если её ещё нет.
-    def add(mas, x):
-        t = True
-        for i in mas:
-            if str(i) == str(x):
-                t = False
-        if t:
-            mas.append(x)
-        return t
-
     # Пройтись по fx нодам
     for i, n in enumerate(nodes):
         # Если у ноды есть взаимосвязанные элементы
-        if len(n.args) > 0:
-            # Если нода являестя торчевским компонентом с параметрами
-            if n.op == "call_module":
-                submodule = model.get_submodule(n.target)
-                # Если нода полноценная свертка или линейный слой
-                if (
-                    isinstance(submodule, torch.nn.Conv2d)
-                    and submodule.groups == 1
-                    or isinstance(submodule, torch.nn.Linear)
-                ):
-                    # Добавить стартовую компоненту в выходной список
-                    crops.append([[str(n.target), 0]])
-                    # Запомнить название связанной компоненты
-                    x_name = str(n.name)
-                    poisk = [x_name]  # Поиск в прямом проходе
-                    poisk2 = []  # Поиск в обратном проходе
-                    i_poisk = 0
-                    i_poisk2 = 0
-                    while True:
-                        next_1 = False
-                        next_2 = False
-                        f = False
-                        # Пройтисб по всем нодам
-                        for j, n in enumerate(nodes):
-
-                            # Если мы еще ищем элементы в прямом проходе
-                            if (
-                                len(poisk) > i_poisk
-                                and str(n.args[0]) == poisk[i_poisk]
-                            ):
-                                # Запоминаем что что-то нашли
-                                next_1 = True
-                                f = True
-                                # Добавить в прямой поиск название найденного компонента
-                                add(poisk, str(n.name))
-                                if n.op == "call_module":
-                                    submodule = model.get_submodule(n.target)
-                                    if (
-                                        isinstance(submodule, torch.nn.Conv2d)
-                                        and submodule.groups == 1
-                                    ):
-                                        add(
-                                            crops[-1], [str(n.target), 1]
-                                        )  # Добавить к текущему выходному листу компоненту
-                                        poisk.pop()  # Удалить найденную компоненту
-                                    elif isinstance(submodule, torch.nn.Linear):
-                                        add(
-                                            crops[-1], [str(n.target), 0]
-                                        )  # Добавить к текущему выходному листу компоненту
-                                        poisk.pop()  # Удалить найденную компоненту
-                                    elif isinstance(
-                                        submodule, torch.nn.Conv2d
-                                    ) or isinstance(submodule, torch.nn.BatchNorm2d):
-                                        add(
-                                            crops[-1], [str(n.target), 0]
-                                        )  # Добавить к текущему выходному листу компоненту
-                            # Если мы еще ищем элементы в обратном проходе
-                            if (
-                                len(poisk2) > i_poisk2
-                                and str(n.name) == poisk2[i_poisk2]
-                            ):
-                                # Запоминаем что что-то нашли
-                                next_2 = True
-                                f = True
-                                if n.op == "call_module":
-                                    submodule = model.get_submodule(n.target)
-                                    # Добавить в обратный поиск название найденного компонента
-                                    add(poisk2, str(n.args[0]))
-                                    if (
-                                        isinstance(submodule, torch.nn.Conv2d)
-                                        and submodule.groups == 1
-                                    ):
-                                        add(crops[-1], [str(n.target), 0])
-                                        poisk2.pop()
-                                    elif isinstance(submodule, torch.nn.Linear):
-                                        add(crops[-1], [str(n.target), 1])
-                                        poisk.pop()
-                                    elif isinstance(
-                                        submodule, torch.nn.Conv2d
-                                    ) or isinstance(submodule, torch.nn.BatchNorm2d):
-                                        add(crops[-1], [str(n.target), 0])
-                            # Если компонента принимает несколько элементов
-                            if len(n.args) > 1:
-                                for name in n.args:  # Пройтись по ним
-                                    if (
-                                        len(poisk) > i_poisk
-                                        and str(name) == poisk[i_poisk]
-                                    ):
-                                        add(poisk, str(n.name))
-                                        for name in n.args:
-                                            add(poisk2, str(name))
-                                            add(poisk, str(name))
-                                if (
-                                    len(poisk2) > i_poisk2
-                                    and str(n.name) == poisk2[i_poisk2]
-                                ):
-                                    for name in n.args:
-                                        add(poisk2, str(name))
-                                        add(poisk, str(name))
-                                        next_2 = True
-
-                            if (
-                                str(type(n.args[0]))
-                                == "<class 'torch.fx.immutable_collections.immutable_list'>"
-                            ):
-                                for name in n.args[0]:
-                                    if (
-                                        len(poisk) > i_poisk
-                                        and str(name) == poisk[i_poisk]
-                                    ):
-                                        add(poisk, str(n.name))
-                                if (
-                                    len(poisk2) > i_poisk2
-                                    and str(n.name) == poisk2[i_poisk2]
-                                ):
-                                    for name in n.args[0]:
-                                        add(poisk2, str(name))
-                                        add(poisk, str(name))
-                                        next_2 = True
-
-                        if not f and len(poisk) > i_poisk:
-                            next_1 = True
-                        if not f and len(poisk2) > i_poisk2 and i_poisk2 != 0:
-                            next_2 = True
-                        if next_1:
-                            i_poisk += 1
-                        if next_2:
-                            i_poisk2 += 1
-                        if not next_1 and not next_2:
-                            break
+        # и нода являестя торчевским компонентом с параметрами
+        if len(n.args) > 0 and n.op == "call_module":
+            submodule = model.get_submodule(n.target)
+            # Если нода полноценная свертка или линейный слой
+            if (
+                isinstance(submodule, torch.nn.Conv2d)
+                and submodule.groups == 1
+                or isinstance(submodule, torch.nn.Linear)
+            ):
+                if isPrint1:
+                    print(i, len(crops), n.target)
+                m = recurs(n, nodes, model, isprint=isPrint2)[::-1]
+                m[0][1] = 0
+                crops.append(m)
     return crops
 
 
@@ -818,17 +895,17 @@ def pruning_mask(model, masks, do, param, config_list, config):
     alf = config.my_pruning.alf
     lr = config.retraining.lr
     num_epochs = config.retraining.num_epochs
-    snp = config.path.exp_save + "/" + config.path.modelName
+    snp = os.path.join(config.path.exp_save, config.path.modelName)
     modelName = config.path.modelName
     load = config.my_pruning.restart.load
-    fil_it = snp + "/" + modelName + "_it{}.txt".format(param.iterr)
+    fil_it = os.path.join(snp, f"{modelName}_it{param.iterr}.txt")
     model = torch.load(param.load)  # Загрузка модели (модель осталась порезанной)
     # Кастыль для сегментации в офе
     if config.model.type_save_load == "interface":
         model.backbone_hooks._attach_hooks()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    with open(load.split(".")[0] + ".msk", "r") as fp:
+    with open(f"{load.split('.')[0]}.msk", "r") as fp:
         sours_mask = json.load(fp)
 
     if do[0] * do[1] == param.orig_size:
@@ -854,18 +931,7 @@ def pruning_mask(model, masks, do, param, config_list, config):
         )
         # Запись результата
         f = open(fil_it, "a")
-        strok = (
-            str(param.self_ind)
-            + " "
-            + config_list[0]["op_names"][0]
-            + " "
-            + str(acc)
-            + " "
-            + str(do)
-            + " "
-            + str(posle)
-            + "\n"
-        )
+        strok = f"{str(param.self_ind)} {config_list[0]['op_names'][0]} {acc} {do} {posle}\n"
         f.write(strok)
         f.close()
         # Сохранение модели
@@ -874,27 +940,16 @@ def pruning_mask(model, masks, do, param, config_list, config):
             model.backbone_hooks._clear_hooks()
         torch.save(
             model,
-            snp
-            + "/"
-            + modelName
-            + "_"
-            + config_list[0]["op_names"][0]
-            + "_it_{}_acc_{:.3f}.pth".format(param.iterr, acc),
+            os.path.join(
+                snp,
+                f"{modelName}_{config_list[0]['op_names'][0]}_it_{param.iterr}_acc_{acc:.3f}.pth",
+            ),
         )
     else:
         # Запись размерностей до и после прунинга
         f = open(fil_it, "a")
         strok = (
-            str(param.self_ind)
-            + " "
-            + config_list[0]["op_names"][0]
-            + " "
-            + "EROR"
-            + " "
-            + str(do)
-            + " "
-            + str(posle)
-            + "\n"
+            f"{str(param.self_ind)} {config_list[0]['op_names'][0]} EROR {do} {posle}\n"
         )
         f.write(strok)
         f.close()
@@ -1010,5 +1065,5 @@ def main(param):
 
 if __name__ == "__main__":
     param = get_param()
-    os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(param.cuda)
+    os.environ["CUDA_VISIBLE_DEVICES"] = f"{param.cuda}"
     main(param)

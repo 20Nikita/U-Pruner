@@ -68,7 +68,7 @@ class resnet18(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = x.view(-1, 512)
+        x = x.view(-1, self.fc.in_features)
         x = self.fc(x)
 
         return x

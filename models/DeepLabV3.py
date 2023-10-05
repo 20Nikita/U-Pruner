@@ -16,7 +16,7 @@ def replace_strides_with_dilation(module, dilation_rate):
 
 class resnet18_encoder(resnet34):
     def __init__(self):
-        super().__init__()
+        super().__init__(512)
         del self.avgpool
         del self.fc
         for mod in self.layer3.modules():

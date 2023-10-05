@@ -40,10 +40,10 @@ def train_model(
     if task_tupe == "segmentation":
         jaccard = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
     for epoch in range(num_epochs):
-        pihati += "Epoch {}/{}".format(epoch + 1, num_epochs) + "\n"
+        pihati += f"Epoch {epoch + 1}/{num_epochs}\n"
         pihati += "-" * 10 + "\n"
         f = open(fil, "w")
-        f.write(pihati + "\n" + tit)
+        f.write(f"{pihati}\n{tit}")
         f.close()
         if task_tupe == "detection":
             metric = MeanAveragePrecision(box_format="xywh")
@@ -69,16 +69,7 @@ def train_model(
                 iiter += 1
                 f = open(fil, "w")
                 f.write(
-                    "Epoch {}/{}".format(epoch + 1, num_epochs)
-                    + "\n"
-                    + str(iiter)
-                    + "/"
-                    + str(int(len(dataloader)))
-                    + "\n"
-                    + "\n"
-                    + pihati
-                    + "\n"
-                    + tit
+                    f"Epoch {epoch + 1}/{num_epochs}\n{str(iiter)}/{str(int(len(dataloader)))}\n\n{pihati}\n{tit}"
                 )
                 f.close()
 
@@ -135,7 +126,7 @@ def train_model(
             )
             pihati += "\n"
             f = open(fil, "w")
-            f.write(pihati + "\n" + tit)
+            f.write(f"{pihati}\n{tit}")
             f.close()
 
             #             print('{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc))

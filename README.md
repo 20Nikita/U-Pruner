@@ -330,3 +330,23 @@ model:
     path_to_resurs: /workspace/proj/model #путь до каталога с точкой фхода и my_model.pth
     name_resurs: my_model # название сохраненной pth модели без расширения .pth
 ```
+## Запуск на своей модели
+1) Если в модели имеются блоки, не являющиеся класами из torch.nn или torch.ao.nn требуется добавить в yami конфиге перечислить эти блоки в парвметре className
+
+### Пример:
+
+Проверив тип слоя bn1 в модели от тимм
+
+    model = timm.create_model('mobilenetv2_100')
+    type(model.bn1)
+получим
+
+    timm.layers.norm_act.BatchNormAct2d
+
+Это вызвано тем, что компонент является наследником torch.nn.BatchNorm2d обявленном в timm.layers.norm_act.py
+
+    from torch import nn as nn
+    class BatchNormAct2d(nn.BatchNorm2d):
+Поэтому при конструировании yami конфига необходимо добавить в className timm.layers.norm_act
+
+    className: ['timm.layers.norm_act']

@@ -21,6 +21,7 @@ AlgorithmTypes = Literal[
     "L2Norm",
 ]
 MyPruningAlgorithmTypes = Literal["TaylorFOWeight", "L2Norm"]
+ClassName = Union[Literal[None], List[str]]
 
 
 class PathConfig(BaseModel):
@@ -113,6 +114,7 @@ class NniPruning(BaseModel):
 
 class Config(BaseModel):
     path: PathConfig
+    class_name: ClassName
     model: ModelConfig
     task: Task
     mask: Mask

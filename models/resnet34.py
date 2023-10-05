@@ -41,7 +41,7 @@ class BasicBlock(nn.Module):
 
 
 class resnet34(nn.Module):
-    def __init__(self):
+    def __init__(self, N):
         super().__init__()
         self.conv1 = nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3, bias=False)
         self.bn1 = nn.BatchNorm2d(64)
@@ -74,7 +74,7 @@ class resnet34(nn.Module):
         )
 
         self.avgpool = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc = nn.Linear(512, 1000)
+        self.fc = nn.Linear(512, N)
 
     def forward(self, x):
         x = self.conv1(x)
@@ -88,7 +88,7 @@ class resnet34(nn.Module):
         x = self.layer4(x)
 
         x = self.avgpool(x)
-        x = x.view(-1, 512)
+        x = x.view(-1, self.fc.in_features)
         x = self.fc(x)
 
         return x

@@ -154,12 +154,8 @@ else:
 
 
 def retrainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
-    fil = (
-        config.path.exp_save
-        + "/"
-        + config.path.modelName
-        + "/"
-        + f"train_log_{ind}.txt"
+    fil = os.path.join(
+        config.path.exp_save, config.path.modelName, f"train_log_{ind}.txt"
     )
 
     model, _, _, pihati, mass, time_elapsed = train_model(
@@ -184,12 +180,8 @@ def retrainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
 
 
 def trainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
-    fil = (
-        config.path.exp_save
-        + "/"
-        + config.path.modelName
-        + "/"
-        + f"train_log_{ind}.txt"
+    fil = os.path.join(
+        config.path.exp_save, config.path.modelName, f"train_log_{ind}.txt"
     )
     model, _, _, pihati, mass, time_elapsed = train_model(
         model,
@@ -214,7 +206,7 @@ def trainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
 
 def finetuner(model):
     optimizer = optim.Adam(model.parameters(), lr=config.retraining.lr)
-    fil = config.path.exp_save + "/" + config.path.modelName + "/" + f"train_log_0.txt"
+    fil = os.path.join(config.path.exp_save, config.path.modelName, "train_log_0.txt")
     train_model(
         model,
         criterion,

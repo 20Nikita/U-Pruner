@@ -109,15 +109,16 @@ class resnet34_encoder(resnet34):
         super().__init__()
         del self.avgpool
         del self.fc
-        self.layer0 = nn.Sequential(self.conv1, self.bn1, self.relu)
-        self.layer_1 = nn.Sequential(self.maxpool, self.layer1)
 
     def forward(self, x):
         features = []
 
-        x = self.layer0(x)
+        x = self.conv1(x)
+        x = self.bn1(x)
+        x = self.relu(x)
         features.append(x)
-        x = self.layer_1(x)
+        x = self.maxpool(x)
+        x = self.layer1(x)
         features.append(x)
         x = self.layer2(x)
         features.append(x)

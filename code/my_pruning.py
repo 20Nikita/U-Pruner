@@ -61,7 +61,7 @@ def my_pruning(start_size_model, config_path):
     resize_alf = config.my_pruning.resize_alf
     iskl = config.my_pruning.iskl
     algoritm = config.my_pruning.algoritm
-    snp = config.path.exp_save + "/" + config.path.modelName
+    snp = os.path.join(config.path.exp_save, config.path.modelName)
     exp_save = config.path.exp_save
     modelName = config.path.modelName
     mask = config.mask.type
@@ -90,10 +90,7 @@ def my_pruning(start_size_model, config_path):
         it = -1
         names = get_stract(model)
         for name in names:
-            if (
-                name[1] == "torch.nn.modules.conv.Conv2d"
-                and len(name[0].split(".bias")) == 1
-            ):
+            if name[1] == "Conv2d" and len(name[0].split(".bias")) == 1:
                 add = True
                 for isk in iskl:
                     if isk == name[0].split(".weight")[0]:
@@ -120,18 +117,14 @@ def my_pruning(start_size_model, config_path):
                             p = Process(target=potok, args=parametri)
                             p.start()
                             p.join()
-                            fil_it = snp + "/" + modelName + "_it{}.txt".format(it)
+                            fil_it = os.path.join(snp, f"{modelName}_it{it}.txt")
                             f = open(fil_it, "r")
                             strr = f.read().split("\n")
                             if strr[-2].split(" ")[2] != "EROR":
                                 maxx = float(strr[-2].split(" ")[2])
-                                load = (
-                                    snp
-                                    + "/"
-                                    + modelName
-                                    + "_"
-                                    + strr[-2].split(" ")[1]
-                                    + "_it_{}_acc_{:.3f}.pth".format(it, maxx)
+                                load = os.path.join(
+                                    snp,
+                                    f"{modelName}_{strr[-2].split(' ')[1]}_it_{it}_acc_{maxx:.3f}.pth",
                                 )
                             print(strr[-2])
                             model = torch.load(load)
@@ -144,23 +137,17 @@ def my_pruning(start_size_model, config_path):
             model, loss, acc, st, time_elapsed2 = trainer.trainer(
                 model, optimizer, trainer.criterion, num_epochs=N_it_ob, ind=f"it{it}"
             )
-            load = (
-                snp
-                + "/"
-                + modelName
-                + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(
-                    it, acc, size_model / start_size_model
-                )
+            load = os.path.join(
+                snp,
+                f"{modelName}_it_{it}_acc_{acc:.3f}_size_{size_model / start_size_model:.3f}.pth",
             )
             # Кастыль для сегментации в офе
             if config.model.type_save_load == "interface":
                 model.backbone_hooks._clear_hooks()
             torch.save(model, load)
-            f = open(exp_save + "/" + modelName + "_log.txt", "a")
+            f = open(os.path.join(exp_save, f"{modelName}_log.txt"), "a")
             f.write(
-                "N {} sloi {} do {} posle {} acc {} size {}\n".format(
-                    it, "pass", "[ ]", "[ ]", acc, size_model / start_size_model
-                )
+                f"N {it} sloi pass do [ ] posle [ ] acc {acc} size {size_model / start_size_model}\n"
             )
             f.close()
             for filename in os.listdir(snp):
@@ -169,10 +156,10 @@ def my_pruning(start_size_model, config_path):
                         len(filename.split("size")) == 1
                         and filename != "orig_model.pth"
                     ):
-                        os.remove(snp + "/" + filename)
+                        os.remove(os.path.join(snp, filename))
                 if filename.split(".")[-1] == "txt":
                     if len(filename.split("train_log")) == 2:
-                        os.remove(snp + "/" + filename)
+                        os.remove(os.path.join(snp, filename))
 
     it = start_iteration
     stract = get_stract(model)
@@ -236,13 +223,9 @@ def my_pruning(start_size_model, config_path):
             for p in rab:
                 p.join()
             time_elapsed = time.time() - since2
-            print(
-                "time_iter= {:.0f}m {:.0f}s".format(
-                    time_elapsed // 60, time_elapsed % 60
-                )
-            )
+            print(f"time_iter= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
 
-        fil_it = snp + "/" + modelName + "_it{}.txt".format(it)
+        fil_it = os.path.join(snp, f"{modelName}_it{it}.txt")
         f = open(fil_it, "r")
         strr = f.read()
         strr = strr.split("\n")
@@ -250,13 +233,8 @@ def my_pruning(start_size_model, config_path):
         for st in strr[:-1]:
             if st.split(" ")[2] != "EROR":
                 maxx = float(st.split(" ")[2])
-                load = (
-                    snp
-                    + "/"
-                    + modelName
-                    + "_"
-                    + st.split(" ")[1]
-                    + "_it_{}_acc_{:.3f}.pth".format(it, maxx)
+                load = os.path.join(
+                    snp, f"{modelName}_{st.split(' ')[1]}_it_{it}_acc_{maxx:.3f}.pth"
                 )
                 sloi = st.split(" ")[1]
                 do = st.split(" ")[3] + " " + st.split(" ")[4]
@@ -266,13 +244,9 @@ def my_pruning(start_size_model, config_path):
             if st.split(" ")[2] != "EROR":
                 if float(st.split(" ")[2]) > maxx:
                     maxx = float(st.split(" ")[2])
-                    load = (
-                        snp
-                        + "/"
-                        + modelName
-                        + "_"
-                        + st.split(" ")[1]
-                        + "_it_{}_acc_{:.3f}.pth".format(it, maxx)
+                    load = os.path.join(
+                        snp,
+                        f"{modelName}_{st.split(' ')[1]}_it_{it}_acc_{maxx:.3f}.pth",
                     )
                     sloi = st.split(" ")[1]
                     do = st.split(" ")[3] + " " + st.split(" ")[4]
@@ -292,13 +266,9 @@ def my_pruning(start_size_model, config_path):
         model, loss, acc, st, time_elapsed2 = trainer.trainer(
             model, optimizer, trainer.criterion, num_epochs=N_it_ob, ind=f"it{it}"
         )
-        load = (
-            snp
-            + "/"
-            + modelName
-            + "_it_{}_acc_{:.3f}_size_{:.3f}.pth".format(
-                it, acc, size_model / start_size_model
-            )
+        load = os.path.join(
+            snp,
+            f"{modelName}_it_{it}_acc_{acc:.3f}_size_{size_model / start_size_model:.3f}.pth",
         )
         # Кастыль для сегментации в офе
         if config.model.type_save_load == "interface":
@@ -306,25 +276,21 @@ def my_pruning(start_size_model, config_path):
         torch.save(model, load)
         stract = get_stract(model)
         del model
-        f = open(exp_save + "/" + modelName + "_log.txt", "a")
+        f = open(os.path.join(exp_save, f"{modelName}_log.txt"), "a")
         f.write(
-            "N {} sloi {} do {} posle {} acc {} size {}\n".format(
-                it, sloi, do, posle, acc, size_model / start_size_model
-            )
+            f"N {it} sloi {sloi} do {do} posle {posle} acc {acc} size {size_model / start_size_model}\n"
         )
         f.close()
         for filename in os.listdir(snp):
             if filename.split(".")[-1] == "pth":
                 if len(filename.split("size")) == 1 and filename != "orig_model.pth":
-                    os.remove(snp + "/" + filename)
+                    os.remove(os.path.join(snp, filename))
             if filename.split(".")[-1] == "txt":
                 if len(filename.split("train_log")) == 2:
-                    os.remove(snp + "/" + filename)
+                    os.remove(os.path.join(snp, filename))
         it = it + 1
         time_elapsed = time.time() - since3
-        print(
-            "time_epox= {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60)
-        )
+        print(f"time_epox= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
     time_elapsed = time.time() - since
-    print("time_total= {:.0f}m {:.0f}s".format(time_elapsed // 60, time_elapsed % 60))
+    print(f"time_total= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
     print(start_size_model, size_model, start_size_model * (1 - P))
