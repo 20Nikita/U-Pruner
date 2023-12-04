@@ -46,7 +46,7 @@ def my_pruning(start_size_model, config_path):
     from my_pruning_pabotnik import get_size, get_stract, get_mask
     from constants import Config
 
-    config = yaml.safe_load(open(config_path))
+    config = yaml.safe_load(open(config_path, encoding ='utf-8'))
     config = Config(**config)
 
     lr_training = config.training.lr
@@ -66,7 +66,7 @@ def my_pruning(start_size_model, config_path):
     modelName = config.path.modelName
     mask = config.mask.type
     sours_mask = config.mask.sours_mask
-
+    class_name = config.class_name
     since = time.time()
     model = torch.load(load)
     # Кастыль для сегментации в офе
@@ -75,7 +75,7 @@ def my_pruning(start_size_model, config_path):
 
     if mask == "mask":
         if sours_mask == "None":
-            sours_mask = get_mask(model)
+            sours_mask = get_mask(model, class_name = class_name)
         else:
             with open(sours_mask, "r") as fp:
                 sours_mask = json.load(fp)

@@ -22,7 +22,7 @@ from argparse import ArgumentParser
 parser = ArgumentParser()
 parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH)
 args, unknown = parser.parse_known_args()
-config = yaml.safe_load(open(args.config))
+config = yaml.safe_load(open(args.config, encoding ='utf-8'))
 config = Config(**config)
 
 device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")

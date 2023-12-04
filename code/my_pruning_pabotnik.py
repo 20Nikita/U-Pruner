@@ -2,6 +2,7 @@ import argparse
 import torch
 import os
 from ptflops import get_model_complexity_info
+import math
 
 # import yaml
 
@@ -255,11 +256,39 @@ def recurs(
                     spisok.append(target)
             return spisok
 
-
+class MyCustomTracer(torch.fx.Tracer):
+    
+    def __init__(
+        self,
+        autowrap_modules = (math,),
+        autowrap_functions = (),
+        param_shapes_constant = False,
+        class_name = None
+    ) -> None:
+        super().__init__(autowrap_modules, autowrap_functions ,param_shapes_constant)
+        self.class_name = class_name
+    def is_leaf_module(self, m: torch.nn.Module, module_qualified_name: str) -> bool:
+        class_names = self.class_name
+        temp = False
+        if class_names!= None:
+            for class_name in class_names:
+                temp =  temp or m.__module__.startswith(class_name)
+        return (
+            (m.__module__.startswith("torch.nn") or m.__module__.startswith("torch.ao.nn") or temp)
+            and not isinstance(m, torch.nn.Sequential)
+        )
+def symbolic_trace(root,concrete_args= None, class_name = None):
+    tracer = MyCustomTracer(class_name = class_name)
+    graph = tracer.trace(root, concrete_args)
+    name = (
+        root.__class__.__name__ if isinstance(root, torch.nn.Module) else root.__name__
+    )
+    return torch.fx.GraphModule(tracer.root, graph, name)
 # Получение маски взаимосвязанных элементов
-def get_mask(model, isPrint1=False, isPrint2=False):
+def get_mask(model, isPrint1=False, isPrint2=False, class_name = None):
     # Получить граф модели
-    gm = torch.fx.symbolic_trace(model)
+    gm = symbolic_trace(model, class_name = class_name)
+    # gm = torch.fx.symbolic_trace(model)
     nodes = []  # Имена нод в формате torch.fx
     crops = []
     for n in gm.graph.nodes:
@@ -970,7 +999,7 @@ def main(param):
     import copy
     from constants import Config
 
-    config = yaml.safe_load(open(param.config))
+    config = yaml.safe_load(open(param.config, encoding ='utf-8'))
     config = Config(**config)
 
     mask = config.mask.type

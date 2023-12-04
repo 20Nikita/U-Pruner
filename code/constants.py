@@ -127,6 +127,8 @@ class Config(BaseModel):
 
 
 # DEFAULT_CONFIG_PATH = "configs/derection_SSD.yaml"
-DEFAULT_CONFIG_PATH = "configs/classification_timm.yaml"
+# DEFAULT_CONFIG_PATH = "configs/classification_timm.yaml"
 # DEFAULT_CONFIG_PATH = "configs/detection_Yolo.yaml"
 # DEFAULT_CONFIG_PATH = "configs/classification-paradigma.yaml"
+DEFAULT_CONFIG_PATH = "configs/Wclassification_timm.yaml"
+# DEFAULT_CONFIG_PATH = "configs/Wclassification.yaml"

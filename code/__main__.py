@@ -2,13 +2,13 @@ import os
 import yaml
 from constants import DEFAULT_CONFIG_PATH, Config
 from argparse import ArgumentParser
-from utils import add_torch_fx_class_name
 
 parser = ArgumentParser()
 parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH)
 
 args = parser.parse_args()
-config = yaml.safe_load(open(args.config))
+print(args.config)
+config = yaml.safe_load(open(args.config, 'r', encoding ='utf-8'))
 config = Config(**config)
 os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config.model.gpu)
 
@@ -50,7 +50,7 @@ def main(config: Config):
 
         sys.path.append(config.model.path_to_resurs)
         model = torch.load(
-            os.path.join(config.model.path_to_resurs, f"{config.model.name_resurs}.pth")
+            os.path.join(config.model.path_to_resurs, f"{config.model.name_resurs}.pth"), map_location = device
         )
 
     print(config.algorithm)
@@ -164,8 +164,4 @@ def main(config: Config):
 
 
 if __name__ == "__main__":
-    # Добавление поддерживаемых классов в torch fx
-    if config.class_name is not None:
-        print(f"add {config.class_name}")
-        add_torch_fx_class_name(config.class_name)
     main(config)
