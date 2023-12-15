@@ -3,12 +3,15 @@ import yaml
 from constants import DEFAULT_CONFIG_PATH, Config
 from argparse import ArgumentParser
 
+log = open("log.txt", "w")
+log.close()
 parser = ArgumentParser()
 parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH)
 
 args = parser.parse_args()
 print(args.config)
-config = yaml.safe_load(open(args.config, 'r', encoding ='utf-8'))
+
+config = yaml.safe_load(open(args.config, "r", encoding="utf-8"))
 config = Config(**config)
 os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config.model.gpu)
 
@@ -35,7 +38,9 @@ def main(config: Config):
     snp = os.path.join(config.path.exp_save, config.path.modelName)
     if not os.path.exists(snp):
         os.makedirs(snp)
-
+    log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
+    log.write(str(args.config) + "\n")
+    log.close()
     if config.model.type_save_load == "interface":
         from interfaces.tools import load_interface, build_net, save_interface
 
@@ -50,10 +55,16 @@ def main(config: Config):
 
         sys.path.append(config.model.path_to_resurs)
         model = torch.load(
-            os.path.join(config.model.path_to_resurs, f"{config.model.name_resurs}.pth"), map_location = device
+            os.path.join(
+                config.model.path_to_resurs, f"{config.model.name_resurs}.pth"
+            ),
+            map_location=device,
         )
 
     print(config.algorithm)
+    log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
+    log.write(str(config.algorithm) + "\n")
+    log.close()
 
     if config.algorithm == "My_pruning":
         # Кастыль для хуков в офе
