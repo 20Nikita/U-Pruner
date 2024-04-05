@@ -1,0 +1,84 @@
+algorithm: My_pruning
+class_name:
+- timm.layers.norm_act
+dataset:
+  annotation_name: data.csv
+  annotation_name_train: null
+  annotation_name_val: null
+  annotation_path: /workspace/db_labs/paradigma/CamVid
+  num_classes: 12
+mask:
+  sours_mask:
+  type: mask
+model:
+  anchors: null
+  aspect_ratios: null
+  feature_maps_h: null
+  feature_maps_w: null
+  gpu: 9
+  name_resurs: orig_model
+  path_to_resurs: /workspace/prj/Pruning/snp/ofa/segment
+  size:
+  - 384
+  - 480
+  type_save_load: interface
+my_pruning:
+  P: 0.9999
+  alf: 2
+  algoritm: L2Norm
+  cart:
+  - 9
+  - 9
+  - 9
+  - 9
+  delta_crop: 0.10000000149011612
+  iskl: []
+  resize_alf: false
+  restart:
+    load: /workspace/prj/Pruning/snp/ofa/segment/segment_it_228_acc_0.772_size_0.028.pth
+    start_iteration: 229
+nni_pruning:
+  P: 0.5
+  gpu: 0
+  total_iteration: 1
+  training: true
+path:
+  exp_save: /workspace/prj/Pruning/snp/ofa/
+  modelName: segment
+retraining:
+  dataLoader:
+    batch_size_t: 5
+    batch_size_v: 5
+    drop_last_t: true
+    drop_last_v: true
+    num_workers_t: 2
+    num_workers_v: 2
+    pin_memory_t: true
+    pin_memory_v: true
+    shuffle_t: true
+    shuffle_v: true
+  is_self_traner: false
+  lr: 9.999999747378752e-06
+  num_epochs: 1
+  self_traner: ''
+task:
+  detection: null
+  type: segmentation
+  loss: CustomBCELoss
+  metrics: SMPMetric
+training:
+  dataLoader:
+    batch_size_t: 5
+    batch_size_v: 5
+    drop_last_t: true
+    drop_last_v: true
+    num_workers_t: 2
+    num_workers_v: 2
+    pin_memory_t: true
+    pin_memory_v: true
+    shuffle_t: true
+    shuffle_v: true
+  is_self_traner: false
+  lr: 1.0e-05
+  num_epochs: 10
+  self_traner: ''

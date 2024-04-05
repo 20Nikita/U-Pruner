@@ -5,7 +5,11 @@ LOAD_VARIANTS = Literal["pth", "interface"]
 
 TaskTypes = Literal["segmentation", "detection", "classification", "special points"]
 DetectionTypes = Literal["ssd", "yolo", None]
-MaskTypes = Literal["mask", "None"]
+
+LossTypes = Literal["CustomBCELoss", None]
+MetricsTypes = Literal["SMPMetric", None]
+
+
 AlgorithmTypes = Literal[
     "My_pruning",
     "AGP",
@@ -17,7 +21,7 @@ AlgorithmTypes = Literal[
     "L2Norm",
 ]
 MyPruningAlgorithmTypes = Literal["TaylorFOWeight", "L2Norm"]
-ClassName = Union[Literal[None], List[str]]
+ClassName = Union[None, List[str]]
 
 
 class PathConfig(BaseModel):
@@ -31,28 +35,30 @@ class ModelConfig(BaseModel):
     name_resurs: str = "interface"
     size: List[int] = [224, 224]
     gpu: int = 0
-    anchors: Union[Literal[None], List[List[List[int]]]] = None
-    feature_maps_w: Union[Literal[None], List[int]] = None
-    feature_maps_h: Union[Literal[None], List[int]] = None
-    aspect_ratios: Union[Literal[None], List[List[int]]] = None
+    anchors: Union[None, List[List[List[int]]]] = None
+    feature_maps_w: Union[None, List[int]] = None
+    feature_maps_h: Union[None, List[int]] = None
+    aspect_ratios: Union[None, List[List[int]]] = None
 
 
 class Task(BaseModel):
     type: TaskTypes = "classification"
-    detection: Literal[DetectionTypes, None] = None
+    detection: DetectionTypes = None
+    loss: LossTypes = None
+    metrics: MetricsTypes = None
 
 
 class Mask(BaseModel):
-    type: MaskTypes = "mask"
-    sours_mask: Union[Literal[None], str] = None
+    type: Literal["mask", None] = "mask"
+    sours_mask: Union[None, str] = None
 
 
 class Dataset(BaseModel):
     num_classes: int = 10
     annotation_path: str = ""
-    annotation_name: Union[Literal[None], str] = None
-    annotation_name_train: Union[Literal[None], str] = None
-    annotation_name_val: Union[Literal[None], str] = None
+    annotation_name: Union[None, str] = None
+    annotation_name_train: Union[None, str] = None
+    annotation_name_val: Union[None, str] = None
 
 
 class DataLoader(BaseModel):
@@ -70,12 +76,16 @@ class DataLoader(BaseModel):
 
 
 class Retraining(BaseModel):
+    is_self_traner: bool = False
+    self_traner: str = ''
     num_epochs: int = 1
     lr: float = 0.00001
     dataLoader: DataLoader = DataLoader()
 
 
 class Training(BaseModel):
+    is_self_traner: bool = False
+    self_traner: str = ''
     num_epochs: int = 1
     lr: float = 0.00001
     dataLoader: DataLoader = DataLoader()
@@ -83,15 +93,14 @@ class Training(BaseModel):
 
 class Restart(BaseModel):
     start_iteration: int = 0
-    load: str = (
-        ""  # = PathConfig.exp_save + '/' + PathConfig.modelName + '/orig_model.pth'
-    )
+    load: Union[None, str] = None
 
 
 class MyPruning(BaseModel):
     alf: int = 32
     P: float = 0.8
     cart: List[int] = [0]
+    top_n: int = 1
     iskl: List[str] = []
     algoritm: MyPruningAlgorithmTypes = "TaylorFOWeight"
     resize_alf: bool = False
@@ -124,5 +133,8 @@ class Config(BaseModel):
 # DEFAULT_CONFIG_PATH = "configs/classification_timm.yaml"
 # DEFAULT_CONFIG_PATH = "configs/detection_Yolo.yaml"
 # DEFAULT_CONFIG_PATH = "configs/classification-paradigma.yaml"
-DEFAULT_CONFIG_PATH = "configs/Wclassification_timm.yaml"
+# DEFAULT_CONFIG_PATH = "configs/Wclassification_timm.yaml"
 # DEFAULT_CONFIG_PATH = "configs/Wclassification.yaml"
+DEFAULT_CONFIG_PATH = "configs/classification_TR50_Caltech256.yaml"
+# DEFAULT_CONFIG_PATH = "config.yaml"
+# DEFAULT_CONFIG_PATH = "config.yaml"

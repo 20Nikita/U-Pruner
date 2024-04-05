@@ -7,7 +7,7 @@ def potok(
     #     print(self_ind, name_sloi)
     return subprocess.call(
         [
-            "python",
+            "python3",
             "code/my_pruning_pabotnik.py",
             "--self_ind",
             str(self_ind),
@@ -42,18 +42,29 @@ def my_pruning(start_size_model, config_path):
     import yaml
     import pandas as pd
     import numpy as np
+    import importlib
+    from  ast import literal_eval
 
-    import training as trainer
-    from my_pruning_pabotnik import get_size, get_stract, get_mask
     from constants import Config
-
     config = yaml.safe_load(open(config_path, encoding="utf-8"))
     config = Config(**config)
+    if config.training.is_self_traner:
+        trainer = importlib.import_module(config.training.self_traner)
+    else:
+        trainer = importlib.import_module('training')
+
+    # import training as trainer
+    from my_pruning_pabotnik import get_size, get_stract, get_mask, get_top_list
+
+    
 
     lr_training = config.training.lr
     N_it_ob = config.training.num_epochs
 
     load = config.my_pruning.restart.load
+    load = load if load else os.path.join(
+        config.path.exp_save, config.path.modelName, 'orig_model.pth'
+    )
     start_iteration = config.my_pruning.restart.start_iteration
     alf = config.my_pruning.alf
     P = config.my_pruning.P
@@ -68,7 +79,12 @@ def my_pruning(start_size_model, config_path):
     sours_mask = config.mask.sours_mask
     class_name = config.class_name
     since = time.time()
+    print(load)
     model = torch.load(load)
+    top_n = config.my_pruning.top_n
+    fil_importance = os.path.join(
+        config.path.exp_save, config.path.modelName, f"{modelName}_importance.csv"
+    )
     if not os.path.isfile(os.path.join(exp_save, f"{modelName}_log.csv")):
         f = open(os.path.join(exp_save, f"{modelName}_log.csv"), "w")
         f.write("N,sloi,do,posle,acc,size\n")
@@ -84,9 +100,8 @@ def my_pruning(start_size_model, config_path):
         else:
             with open(sours_mask, "r") as fp:
                 sours_mask = json.load(fp)
-        with open(load.split(".")[0] + ".msk", "w") as fp:
+        with open(os.path.join(config.path.exp_save, f"{modelName}.msk"), "w")  as fp:
             json.dump(sours_mask, fp)
-
     if not start_size_model:
         start_size_model = get_size(copy.deepcopy(model), config.model.size)
     if resize_alf:
@@ -191,55 +206,113 @@ def my_pruning(start_size_model, config_path):
                         )
 
     it = start_iteration
-    stract = get_stract(model)
     size_model = get_size(model, config.model.size)
-    del model
+    importance = pd.DataFrame()
+    next = True
+    ind = 0
+
+    top_list = []
+    if os.path.isfile(fil_importance):
+        importance = pd.read_csv(fil_importance)
+        top_list = get_top_list(importance.values, iskl, model, top_n, alf, i_start=0, is_literal_eval = True)
+    else:
+        temp_list = get_stract(model)
+        top_list = get_top_list(temp_list, iskl, model, len(temp_list), alf, i_start=0, is_literal_eval = False)
+    
     while start_size_model * (1 - P) < size_model:
         print(start_size_model, size_model, start_size_model * (1 - P))
         log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
         log.write(f"{start_size_model}, {size_model}, {start_size_model * (1 - P)}\n")
         log.close()
         parametri = []
-        ind = 0
-        for name in stract:
-            if name[1] == "Conv2d" and len(name[0].split(".bias")) == 1:
-                add = True
-                for isk in iskl:
-                    if isk == name[0].split(".weight")[0]:
-                        add = False
-                if name[2][1] > alf and add:
-                    sprasity = 0
-                    if delta_crop == None:
-                        sprasity = (
-                            name[2][1] - (int(name[2][1] * (1 - P) / alf) * alf)
-                        ) / name[2][1]
-                    else:
-                        sprasity = (
-                            name[2][1]
-                            - (int(name[2][1] * (1 - delta_crop) / alf) * alf)
-                        ) / name[2][1]
-                    if sprasity == 1:
-                        sprasity = (
-                            name[2][1] - ((int(name[2][1] / alf) - 1) * alf)
-                        ) / name[2][1]
-                        if sprasity == 1:
-                            sprasity = (
-                                name[2][1] - (int(name[2][1] / alf) * alf)
-                            ) / name[2][1]
-                    parametri.append(
-                        (
-                            ind,
-                            cart[ind % len(cart)],
-                            load,
-                            name[0].split(".weight")[0],
-                            sprasity,
-                            name[2][0] * name[2][1],
-                            it,
-                            algoritm,
-                            config_path,
-                        )
-                    )
-                    ind += 1
+        model = torch.load(load)
+        for name in top_list:
+            submodule = model.get_submodule(name[0])
+            size = [submodule.in_channels, submodule.out_channels]
+            a = int(size[1] // alf * delta_crop)
+            if size[1] >= alf * 2 and a == 0:
+                a = a + 1
+            b = size[1] % alf
+            sprasity = (a * alf + b) / size[1]
+            parametri.append(
+                (
+                    ind,
+                    cart[ind % len(cart)],
+                    load,
+                    name[0],
+                    sprasity,
+                    size[0] * size[1],
+                    it,
+                    algoritm,
+                    config_path,
+                )
+            )
+            ind += 1
+                    # elif submodule.in_channels == submodule.out_channels:
+                    #     parametri.append(
+                    #         (
+                    #             ind,
+                    #             cart[ind % len(cart)],
+                    #             load,
+                    #             name[0],
+                    #             1,
+                    #             name[2][0] * name[2][1],
+                    #             it,
+                    #             'delete',
+                    #             config_path,
+                    #         )
+                    #     )
+                    #     ind += 1
+                # elif (isinstance(submodule, torch.nn.Conv2d) 
+                #       and submodule.in_channels == submodule.groups 
+                #       and submodule.in_channels == alf):
+                #     parametri.append(
+                #         (
+                #             ind,
+                #             cart[ind % len(cart)],
+                #             load,
+                #             name[0],
+                #             1,
+                #             name[2][0] * name[2][1],
+                #             it,
+                #             'delete',
+                #             config_path,
+                #         )
+                #     )
+                #     ind += 1
+                # elif (isinstance(submodule, torch.nn.BatchNorm2d) 
+                #       and submodule.num_features == alf):
+                #     parametri.append(
+                #         (
+                #             ind,
+                #             cart[ind % len(cart)],
+                #             load,
+                #             name[0],
+                #             1,
+                #             name[2][0],
+                #             it,
+                #             'delete',
+                #             config_path,
+                #         )
+                #     )
+                #     ind += 1
+                # elif (isinstance(submodule, torch.nn.Linear) 
+                #       and submodule.in_features == submodule.out_features == alf):
+                #     parametri.append(
+                #         (
+                #             ind,
+                #             cart[ind % len(cart)],
+                #             load,
+                #             name[0],
+                #             1,
+                #             name[2][0] * name[2][1],
+                #             it,
+                #             'delete',
+                #             config_path,
+                #         )
+                #     )
+                #     ind += 1
+        del model
         opit = 0
         since3 = time.time()
         while opit < len(parametri):
@@ -257,7 +330,7 @@ def my_pruning(start_size_model, config_path):
                     opit += 1
             for p in rab:
                 p.join()
-
+            model = torch.load(load)
             time_elapsed = time.time() - since2
             print(f"time_iter= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
             log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
@@ -270,72 +343,107 @@ def my_pruning(start_size_model, config_path):
             config.path.exp_save, config.path.modelName, f"{modelName}_it{it}.csv"
         )
         data = pd.read_csv(fil_it)
-        if not np.isnan(data["acc"].max()):
-            i = data["acc"].idxmax()
-            _, sloi, acc, before, after = data.iloc[[i]].values[0]
+        
+        if not os.path.isfile(fil_importance):
+            importance = data.sort_values('acc', ascending = False)[['name', 'acc', 'before', 'after']]
+            top_list = get_top_list(importance.values, iskl, model, top_n, alf, i_start=0, is_literal_eval = True)
+        else:
+            importance_t = data.sort_values('acc', ascending = False)[['name', 'acc', 'before', 'after']]
+            top_list = get_top_list(importance.values, iskl, model, top_n, alf, i_start=len(importance_t), is_literal_eval = True)
+            if len(top_list)==0 or top_list[0][1] < importance_t.values[0][1]:
+                next = True
+            else:
+                next = False
+                del model
+        if next:
+            for i, d in data[['name', 'acc', 'before', 'after']].iterrows():
+                ind = importance[(importance['name'] == d['name'])]
+                if len(ind):
+                    importance.loc[ind.index,'acc'] = d['acc']
+                    importance.loc[ind.index,'before'] = d['before']
+                    importance.loc[ind.index,'after'] = d['after']
+                else:
+                    importance.loc[len(importance)] = d
+            importance = importance.sort_values('acc', ascending = False)
+            top_list = get_top_list(importance.values, iskl, model, top_n, alf, i_start=0, is_literal_eval = True)
+            ind = 0
+            fil_importance = os.path.join(
+                config.path.exp_save, config.path.modelName, f"{modelName}_importance.csv"
+            )
+            importance.to_csv(fil_importance, index=False)
+            importance.to_csv(os.path.join(
+                config.path.exp_save, config.path.modelName, f"{modelName}_importance_it{it}.csv"
+            ), index=False)
+
+            if not np.isnan(data["acc"].max()):
+                i = data["acc"].idxmax()
+                _, sloi, acc, before, after = data.iloc[[i]].values[0]
+                load = os.path.join(
+                    config.path.exp_save,
+                    config.path.modelName,
+                    f"{modelName}_{sloi}_it_{it}_acc_{acc:.3f}.pth",
+                )
+            else:
+                break
+            model = torch.load(load)
+            m = copy.deepcopy(model)
+            # Кастыль для сегментации в офе
+            if config.model.type_save_load == "interface":
+                model.backbone_hooks._attach_hooks()
+                m.backbone_hooks._attach_hooks()
+
+            optimizer = optim.Adam(model.parameters(), lr=lr_training)
+            size_model = get_size(m, config.model.size)
+            del m
+            model, loss, acc, st, time_elapsed2 = trainer.trainer(
+                model, optimizer, trainer.criterion, num_epochs=N_it_ob, ind=f"it{it}"
+            )
             load = os.path.join(
                 config.path.exp_save,
                 config.path.modelName,
-                f"{modelName}_{sloi}_it_{it}_acc_{acc:.3f}.pth",
+                f"{modelName}_it_{it}_acc_{acc:.3f}_size_{size_model / start_size_model:.3f}.pth",
             )
-        else:
-            break
-        if it == start_iteration:
-            i = np.where(pd.isnull(data))[0]
-            arr = data["name"].values[i]
-            iskl = np.concatenate((iskl, arr))
-        model = torch.load(load)
-        m = copy.deepcopy(model)
-        # Кастыль для сегментации в офе
-        if config.model.type_save_load == "interface":
-            model.backbone_hooks._attach_hooks()
-            m.backbone_hooks._attach_hooks()
+            # Кастыль для сегментации в офе
+            if config.model.type_save_load == "interface":
+                model.backbone_hooks._clear_hooks()
+            torch.save(model, load)
+            del model
+            f = open(os.path.join(exp_save, f"{modelName}_log.csv"), "a")
+            f.write(
+                f'{it},{sloi},"{before}","{after}",{acc},{size_model / start_size_model}\n'
+            )
+            f.close()
+            for filename in os.listdir(
+                os.path.join(config.path.exp_save, config.path.modelName)
+            ):
+                if filename.split(".")[-1] == "pth":
+                    if len(filename.split("size")) == 1 and filename != "orig_model.pth":
+                        os.remove(
+                            os.path.join(
+                                config.path.exp_save, config.path.modelName, filename
+                            )
+                        )
+                if filename.split(".")[-1] == "txt":
+                    if len(filename.split("train_log")) == 2:
+                        os.remove(
+                            os.path.join(
+                                config.path.exp_save, config.path.modelName, filename
+                            )
+                        )
+            it = it + 1
+            time_elapsed = time.time() - since3
+            print(f"time_epox= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
+            log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
+            log.write(f"time_epox= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s\n")
+            log.close()
 
-        optimizer = optim.Adam(model.parameters(), lr=lr_training)
-        size_model = get_size(m, config.model.size)
-        del m
-        model, loss, acc, st, time_elapsed2 = trainer.trainer(
-            model, optimizer, trainer.criterion, num_epochs=N_it_ob, ind=f"it{it}"
-        )
-        load = os.path.join(
-            config.path.exp_save,
-            config.path.modelName,
-            f"{modelName}_it_{it}_acc_{acc:.3f}_size_{size_model / start_size_model:.3f}.pth",
-        )
-        # Кастыль для сегментации в офе
-        if config.model.type_save_load == "interface":
-            model.backbone_hooks._clear_hooks()
-        torch.save(model, load)
-        stract = get_stract(model)
-        del model
-        f = open(os.path.join(exp_save, f"{modelName}_log.csv"), "a")
-        f.write(
-            f'{it},{sloi},"{before}","{after}",{acc},{size_model / start_size_model}\n'
-        )
-        f.close()
-        for filename in os.listdir(
-            os.path.join(config.path.exp_save, config.path.modelName)
-        ):
-            if filename.split(".")[-1] == "pth":
-                if len(filename.split("size")) == 1 and filename != "orig_model.pth":
-                    os.remove(
-                        os.path.join(
-                            config.path.exp_save, config.path.modelName, filename
-                        )
-                    )
-            if filename.split(".")[-1] == "txt":
-                if len(filename.split("train_log")) == 2:
-                    os.remove(
-                        os.path.join(
-                            config.path.exp_save, config.path.modelName, filename
-                        )
-                    )
-        it = it + 1
-        time_elapsed = time.time() - since3
-        print(f"time_epox= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
-        log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
-        log.write(f"time_epox= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s\n")
-        log.close()
+            # # Обновление маски после удаления параметров
+            # log = pd.read_csv(os.path.join(exp_save, f"{modelName}_log.csv"))
+            # if log["posle"].isnull().iloc[-1]:
+            #     sours_mask = get_mask(model, class_name=class_name)
+            #     with open(os.path.join(config.path.exp_save, f"{modelName}.msk"), "w")  as fp:
+            #         json.dump(sours_mask, fp)
+
     time_elapsed = time.time() - since
     print(f"time_total= {time_elapsed // 60:.0f}m {time_elapsed % 60:.0f}s")
     print(start_size_model, size_model, start_size_model * (1 - P))

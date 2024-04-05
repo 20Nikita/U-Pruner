@@ -1,5 +1,6 @@
 import os
 import yaml
+import pandas as pd
 from constants import DEFAULT_CONFIG_PATH, Config
 from argparse import ArgumentParser
 
@@ -21,14 +22,19 @@ def main(config: Config):
     import copy
     import time
     import torch.optim as optim
+    import importlib
 
     import nni
 
     import my_pruning as my_pruning
     from my_pruning_pabotnik import get_size, get_stract
     from ModelSpeedup import ModelSpeedup
-    import training as trainer
     from utils_torch import ALGORITHMS
+
+    if config.training.is_self_traner:
+        trainer = importlib.import_module(config.training.self_traner)
+    else:
+        trainer = importlib.import_module('training')
 
     since = time.time()
     acc = 0
@@ -43,6 +49,7 @@ def main(config: Config):
     log.close()
     if config.model.type_save_load == "interface":
         from interfaces.tools import load_interface, build_net, save_interface
+        # trainer = importlib.import_module('training')
 
         interface = load_interface(
             path_to_interface=config.model.path_to_resurs,
@@ -60,6 +67,10 @@ def main(config: Config):
             ),
             map_location=device,
         )
+        # if config.training.is_self_traner:
+        #     trainer = importlib.import_module(config.training.self_traner)
+        # else:
+        #     trainer = importlib.import_module('training')
 
     print(config.algorithm)
     log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
@@ -79,11 +90,8 @@ def main(config: Config):
         my_pruning.my_pruning(
             start_size_model=start_size_model, config_path=args.config
         )
-        _, N, _, sloi, _, _, _, _, _, _, _, acc, _, size = (
-            open(os.path.join(config.path.exp_save, config.path.modelName + "_log.txt"))
-            .readlines()[-1]
-            .split(" ")
-        )
+        data = pd.read_csv(os.path.join(config.path.exp_save, config.path.modelName + "_log.csv"))
+        N, sloi, do, posle, acc, size = data.iloc[-1].values
         model = torch.load(
             os.path.join(
                 config.path.exp_save,
@@ -91,6 +99,7 @@ def main(config: Config):
                 f"{config.path.modelName}_it_{N}_acc_{float(acc):.3f}_size_{float(size):.3f}.pth",
             )
         )
+        
 
     else:
         model = model.to(device)
@@ -132,7 +141,7 @@ def main(config: Config):
 
         m = copy.deepcopy(model_prun)
         mo = copy.deepcopy(model_orig)
-        if onfig.model.type_save_load == "interface":
+        if config.model.type_save_load == "interface":
             m.backbone_hooks._attach_hooks()
             mo.backbone_hooks._attach_hooks()
         size = get_size(m, config.model.size) / get_size(mo, config.model.size)
@@ -172,6 +181,11 @@ def main(config: Config):
         )
     elif config.model.type_save_load == "pth":
         torch.save(model, os.path.join(config.model.path_to_resurs, "rezalt.pth"))
+
+    print('End!')
+    log = open(os.path.join(config.path.exp_save, "log.txt"), "a")
+    log.write("End!\n")
+    log.close()
 
 
 if __name__ == "__main__":

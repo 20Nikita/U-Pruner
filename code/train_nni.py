@@ -4,9 +4,31 @@ import copy
 import torch
 import numpy as np
 from torchmetrics import JaccardIndex
+
 from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from detect import get_preds, get_target, Decod
 
+
+from torchmetrics import MeanMetric
+from segmentation_models_pytorch.utils import base as smp_base
+from segmentation_models_pytorch.utils.metrics import IoU
+
+class SMPMetric(MeanMetric):
+    def __init__(
+        self, counter_cls: smp_base.Metric, threshold=0.5, ignore_channels=None
+    ):
+        super().__init__()
+        self.counter = counter_cls(threshold=threshold, ignore_channels=ignore_channels)
+
+    def update(self, output) -> None:
+        counted = self.counter(output[0].detach(), output[1].detach()).item()
+        return super().update(counted)
+
+    def compute(self) -> float:
+        return super().compute().cpu().item()
+class AverageIoU(SMPMetric):
+    def __init__(self, *args, **kwargs):
+        super().__init__(IoU, *args, **kwargs)
 
 def train_model(
     model,
@@ -22,6 +44,7 @@ def train_model(
     fil=None,
     task_tupe="classification",
     ssd=False,
+    Metrics = None,
 ):
     # Запомнить время начала обучения
     since = time.time()
@@ -38,7 +61,10 @@ def train_model(
     if ssd:
         decod = Decod()
     if task_tupe == "segmentation":
-        jaccard = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
+        if Metrics == 'SMPMetric':
+            metric = AverageIoU(threshold=0.5, ignore_channels=None).to(device)
+        else:
+            metric = JaccardIndex(task="multiclass", num_classes=N_class).to(device)
     for epoch in range(num_epochs):
         pihati += f"Epoch {epoch + 1}/{num_epochs}\n"
         pihati += "-" * 10 + "\n"
@@ -84,8 +110,10 @@ def train_model(
                 with torch.set_grad_enabled(phase == "T"):
                     # Проход картинок через модель
                     classification = model(inputs)
+                    classification = classification.sigmoid()
                     if ssd:
                         classification = decod.decod(classification)
+
                     loss = classification_criterion(
                         classification, classification_label
                     )
@@ -105,9 +133,13 @@ def train_model(
                     )  # Колличество правильных ответов
                 elif task_tupe == "segmentation":
                     for x, y in zip(classification, classification_label):
-                        x = torch.argmax(x, dim=0)
-                        y = torch.argmax(y, dim=0)
-                        running_corrects += jaccard(x, y)
+                        if Metrics == 'SMPMetric':
+                            metric.update(output=[x, y])
+                        else:
+                            x = torch.argmax(x, dim=0)
+                            y = torch.argmax(y, dim=0)
+                            running_corrects += metric([x, y])
+                        
                 elif task_tupe == "detection":
                     metric.update(
                         get_preds(classification, k=10, alf=0.01),
@@ -117,8 +149,11 @@ def train_model(
             epoch_classification_loss = running_classification_loss / dataset_sizes
             running_classification_loss /= dataset_sizes
             if task_tupe != "detection":
-                epoch_acc = running_corrects / dataset_sizes
-            else:
+                if Metrics == 'SMPMetric':
+                    epoch_acc = metric.compute()
+                else:
+                    epoch_acc = running_corrects / dataset_sizes
+            elif task_tupe == "detection":
                 metrics = metric.compute()
                 epoch_acc = metrics["map_50"]
             pihati += "{}_Loss: {:.4f} Acc: {:.4f}".format(
@@ -132,8 +167,13 @@ def train_model(
             #             print('{}_Loss: {:.4f} Acc: {:.4f}'.format(phase, epoch_classification_loss, epoch_acc))
             if phase == "V":
                 mass[0].append(epoch)
-                mass[1].append(epoch_acc.item())
+                if Metrics == 'SMPMetric':
+                    mass[1].append(metric.compute())
+                else:
+                    mass[1].append(epoch_acc.item())
                 mass[2].append(epoch_classification_loss)
+            if Metrics == 'SMPMetric':
+                metric.reset()
 
             # Копироование весов успешной модели на вэйле
             if (phase == "V") and epoch_classification_loss < best_Loss_classification:

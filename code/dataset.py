@@ -14,7 +14,7 @@ from constants import DEFAULT_CONFIG_PATH, Config
 from argparse import ArgumentParser
 
 parser = ArgumentParser()
-parser.add_argument("--config", default=DEFAULT_CONFIG_PATH)
+parser.add_argument("-c", "--config", default=DEFAULT_CONFIG_PATH)
 args, unknown = parser.parse_known_args()
 config = yaml.safe_load(open(args.config, encoding="utf-8"))
 config = Config(**config)
@@ -32,7 +32,7 @@ class GenericDataset(Dataset):
     def __getitem__(self, index):
 
         filepath, label = self.filefolder[index]
-
+        
         image = cv2.imread(filepath)
         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
         if config.task.type == "classification":
@@ -40,8 +40,8 @@ class GenericDataset(Dataset):
         elif config.task.type == "segmentation":
             label = np.asarray(Image.open(label))
             augmentations = self.transform(image=image, mask=label)
-            image = augmentations.image
-            label = augmentations.mask
+            image = augmentations["image"]
+            label = augmentations["mask"]
             label = (
                 torch.nn.functional.one_hot(label.to(torch.int64), self.N_class)
                 .permute((2, 0, 1))
@@ -120,25 +120,58 @@ resize_shape = [int(crop_shape[0] * 1.1), int(crop_shape[1] * 1.1)]
 #         ])
 default_val_transform = A.Compose(
     [
-        A.Resize(resize_shape[1], resize_shape[0], p=1),
-        A.CenterCrop(crop_shape[1], crop_shape[0], p=1),
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.Resize(crop_shape[1], crop_shape[0], p=1),
+        # A.CenterCrop(crop_shape[1], crop_shape[0], p=1),
+        # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
         Ap.transforms.ToTensorV2(),
     ]
 )
 default_train_transform = A.Compose(
     [
-        A.Resize(resize_shape[1], resize_shape[0], p=1),
-        A.RandomResizedCrop(
-            height=crop_shape[1], width=crop_shape[0], scale=(0.25, 1), p=1
-        ),
+        A.Resize(crop_shape[1], crop_shape[0], p=1),
+        # A.RandomResizedCrop(
+        #     height=crop_shape[1], width=crop_shape[0], scale=(0.25, 1), p=1
+        # ),
         A.Flip(
             p=0.5
         ),  # Отразите вход по горизонтали, вертикали или по горизонтали и вертикали.
-        A.Rotate(
-            p=0.5
-        ),  # Поверните ввод на угол, случайно выбранный из равномерного распределения.
-        A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        # A.Rotate(
+        #     p=0.5
+        # ),  # Поверните ввод на угол, случайно выбранный из равномерного распределения.
+        # A.Normalize(mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225)),
+        A.Normalize(mean=(0.5, 0.5, 0.5), std=(0.5, 0.5, 0.5)),
         Ap.transforms.ToTensorV2(),
     ]
 )
+
+
+def build_train_transform(self, image_size=None):
+    if image_size is None:
+        image_size = self.image_size
+    divisor = 32
+    crop_height = make_divisible(self.train_crop_ratio * image_size[0], divisor)
+    crop_width = make_divisible(self.train_crop_ratio * image_size[1], divisor)
+
+    train_transform = [
+        albu.Resize(*image_size),
+        albu.HorizontalFlip(p=0.5),
+    ]
+    train_transform += [
+        albu.RandomCrop(height=crop_height, width=crop_width, always_apply=True),
+        self.normalize,
+        ToTensor(transpose_mask=True),
+    ]
+    return albu.Compose(train_transform)
+
+def build_valid_transform(self, image_size=None):
+    if image_size is None:
+        image_size = self.image_size
+    test_transform = [
+        #! TODO REFACTOR
+        # Resize -- временное решение
+        albu.Resize(*image_size),
+        self.normalize,
+        ToTensor(transpose_mask=True),
+    ]
+    return albu.Compose(test_transform)

@@ -3,7 +3,7 @@ import torch
 import os
 from ptflops import get_model_complexity_info
 import math
-
+from  ast import literal_eval
 # import yaml
 
 # # Получить данные об обучаемых параметрах сети
@@ -23,8 +23,35 @@ import math
 #         return "Linear"
 #     else:
 #         return type_module
+def get_top_list(temp_list, iskl, model, top_n, alf, i_start=0, is_literal_eval = True):
+    if is_literal_eval:
+        for i, d in enumerate(temp_list):
+            temp_list[i][2]=literal_eval(d[2])
+            temp_list[i][3]=literal_eval(d[3])
+    top_list = []
+    for name in temp_list:
+        if not name[0] in iskl:
+            submodule = model.get_submodule(name[0])
+            if isinstance(submodule, torch.nn.Conv2d) and submodule.groups == 1 and submodule.out_channels > alf:
+                top_list.append(name)
+    if len(top_list) >= (top_n + i_start): 
+        return top_list[i_start:top_n + i_start]
+    else:
+        return top_list[i_start:]
 
 
+def remove_delete_sloi_in_mask(mask, log):
+    i = np.where(pd.isnull(log["posle"]))[0]
+    delete_sloi = log["sloi"].values[i]
+    nev_mask = []
+    for blok in mask:
+        n_blok = []
+        for sloi in blok:
+            if not sloi[0] in delete_sloi:
+                n_blok.append(sloi)
+        if len(n_blok):
+            nev_mask.append(n_blok)
+    return nev_mask
 # Получить имена компонентов сети, имеющих параметры
 def get_stract(model):
     stact = []
@@ -160,15 +187,15 @@ def deletDublicat(spisok):
 
 # Рекурсивный обход модели для получения взаимосвязанных элементов
 def recurs(
-    tek_point,
-    graf,
-    model,
-    bool_niz: bool = True,
-    pred_point=None,
-    glob=0,
-    stops=[],
-    isprint=False,
-    self_pass=False,
+    tek_point,          # текущая точка графа
+    graf,               # граф
+    model,              # нейронная сеть
+    bool_niz = True,    # направление по графу модели вниз
+    pred_point=None,    # предыдущая точка графа
+    glob=0,             # текущая глубина рекурсии
+    stops=[],           # список исключений
+    isprint=False,      # печать результата
+    self_pass=False,    # не добовлять текущий элемент в массив
 ):
     spisok = []
     s = "\t"
@@ -176,11 +203,11 @@ def recurs(
         print(f"{s*glob}Name = {tek_point}, stops = {stops}")
     if glob > 30:
         return spisok
-    if tek_point.name in stops:
-        if isprint:
-            print(f"{s*glob}STOP name = {tek_point.name}")
-        return spisok
     if isinstance(tek_point, torch.fx.node.Node):
+        if tek_point.name in stops:
+            if isprint:
+                print(f"{s*glob}STOP name = {tek_point.name}")
+            return spisok
         if len(tek_point.args) > 1:
             for el in tek_point.args:
                 if isprint:
@@ -329,7 +356,10 @@ def get_size(model, shape):
         print_per_layer_stat=False,
         verbose=False,
     )
-    return params
+    if params == 0:
+        return macs
+    else:
+        return params
 
 
 # Удалить веса. Вход: weight - torch.nn.Parameter (Веса),
@@ -337,9 +367,12 @@ def get_size(model, shape):
 # j - list (инексы столбцов массива весов, которые нужно удалить)
 def delet_weight(weight, i=-1, j=-1):
     # Удалить строки
+    # if i != -1:
+    #     for k in range(len(i)):
+    #         k = i[len(i) - 1 - k]
+    #         weight = torch.nn.Parameter(torch.cat([weight[0:k], weight[k + 1 :]]))
     if i != -1:
-        for k in range(len(i)):
-            k = i[len(i) - 1 - k]
+        for k in i[::-1]:
             weight = torch.nn.Parameter(torch.cat([weight[0:k], weight[k + 1 :]]))
     # Удалить столбцы
     if j != -1:
@@ -356,9 +389,12 @@ def delet_weight(weight, i=-1, j=-1):
 
 def delet_weight_Linear(weight, i=-1, j=-1):
     # Удалить строки
+    # if i != -1:
+    #     for k in range(len(i)):
+    #         k = i[len(i) - 1 - k]
+    #         weight = torch.nn.Parameter(torch.cat([weight[0:k], weight[k + 1 :]]))
     if i != -1:
-        for k in range(len(i)):
-            k = i[len(i) - 1 - k]
+        for k in i[::-1]:
             weight = torch.nn.Parameter(torch.cat([weight[0:k], weight[k + 1 :]]))
     # Удалить столбцы
     if j != -1:
@@ -465,8 +501,6 @@ def delet(model, Delet_Name_sloi, i=-1, j=-1):
 
         out_features = submodule.out_features
         out_features = out_features if j == -1 else out_features - len(j)
-
-        bias = submodule.bias
 
         new_pam = torch.nn.Linear(in_features, out_features)
 
@@ -919,19 +953,29 @@ def get_param():
 #         )
 #         f.write(strok)
 #         f.close()
+def delete(model, Delet_Name_sloi):
+    sloi = Delet_Name_sloi.split(".")
+    t = model
+    for s in sloi[:-1]:
+        t = t.__dict__["_modules"][s]
+    t.__dict__["_modules"][sloi[-1]] = torch.nn.Identity()
 
-
-def pruning_mask(model, masks, do, param, config_list, config):
-    import yaml
+def pruning_mask(model, masks, do, param, config):
+    import importlib
     import torch.optim as optim
-    import training as trainer
+    # import training as trainer
     import json
+
+    if config.training.is_self_traner:
+        trainer = importlib.import_module(config.training.self_traner)
+    else:
+        trainer = importlib.import_module('training')
 
     alf = config.my_pruning.alf
     lr = config.retraining.lr
     num_epochs = config.retraining.num_epochs
     modelName = config.path.modelName
-    load = config.my_pruning.restart.load
+    
     fil_it = os.path.join(
         config.path.exp_save, config.path.modelName, f"{modelName}_it{param.iterr}.csv"
     )
@@ -945,24 +989,29 @@ def pruning_mask(model, masks, do, param, config_list, config):
         model.backbone_hooks._attach_hooks()
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
-    with open(f"{load.split('.')[0]}.msk", "r") as fp:
+    with open(os.path.join(config.path.exp_save, f"{config.path.modelName}.msk"), "r")  as fp:
         sours_mask = json.load(fp)
 
-    if do[0] * do[1] == param.orig_size:
+    if masks == None:
+        delete(model, param.name_sloi)
+        posle = None
+    elif do[0] * do[1] == param.orig_size:
         compres3(model, masks, sours_mask)  # Запуск прунинга
 
-    model.to(device)  # Замененные слои не на карте
-    # Узнать размер сверток после прунинга
-    for name in get_stract(model):
-        if name[0].split(".weight")[0] == config_list[0]["op_names"][0]:
-            posle = name[2]
-            break
+        model.to(device)  # Замененные слои не на карте
+        # Узнать размер сверток после прунинга
+        posle = [model.get_submodule(param.name_sloi).in_channels, 
+                model.get_submodule(param.name_sloi).out_channels]
+    # for name in get_stract(model):
+    #     if name[0].split(".weight")[0] == config_list[0]["op_names"][0]:
+    #         posle = name[2]
+    #         break
 
     # После обрезки сеть обрезслась и кратна alf
-    if do != posle and posle[1] % alf == 0:
+    if masks == None or do != posle and posle[1] % alf == 0:
         # Дообучаем
         optimizer = optim.Adam(model.parameters(), lr=lr)
-        model, loss, acc, st, time_elapsed2 = trainer.retrainer(
+        model, _, acc, _, _ = trainer.retrainer(
             model,
             optimizer,
             trainer.criterion,
@@ -971,7 +1020,7 @@ def pruning_mask(model, masks, do, param, config_list, config):
         )
         # Запись результата
         f = open(fil_it, "a")
-        strok = f"{str(param.self_ind)},{config_list[0]['op_names'][0]},{acc},\"{do}\",\"{posle}\"\n"
+        strok = f"{str(param.self_ind)},{param.name_sloi},{acc},\"{do}\",\"{posle}\"\n"
         f.write(strok)
         f.close()
         # Сохранение модели
@@ -983,13 +1032,13 @@ def pruning_mask(model, masks, do, param, config_list, config):
             os.path.join(
                 config.path.exp_save,
                 config.path.modelName,
-                f"{modelName}_{config_list[0]['op_names'][0]}_it_{param.iterr}_acc_{acc:.3f}.pth",
+                f"{modelName}_{param.name_sloi}_it_{param.iterr}_acc_{acc:.3f}.pth",
             ),
         )
     else:
         # Запись размерностей до и после прунинга
         f = open(fil_it, "a")
-        strok = f"{str(param.self_ind)},{config_list[0]['op_names'][0]},,\"{do}\",\"{posle}\"\n"
+        strok = f"{str(param.self_ind)},{param.name_sloi},,\"{do}\",\"{posle}\"\n"
         f.write(strok)
         f.close()
 
@@ -997,13 +1046,12 @@ def pruning_mask(model, masks, do, param, config_list, config):
 def main(param):
     os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(param.cuda)
     import torch
+    import importlib
     import nni
     from nni.algorithms.compression.v2.pytorch.pruning import TaylorFOWeightPruner
     from nni.algorithms.compression.v2.pytorch.pruning import L2NormPruner
 
     # from nni.algorithms.compression.pytorch.pruning import L2FilterPruner
-    from nni.compression.pytorch import ModelSpeedup
-    import training as trainer
     import yaml
     import sys
     import copy
@@ -1013,8 +1061,15 @@ def main(param):
     config = Config(**config)
 
     mask = config.mask.type
+
+
     sys.path.append(config.model.path_to_resurs)
 
+    if config.training.is_self_traner:
+        trainer = importlib.import_module(config.training.self_traner)
+    else:
+        trainer = importlib.import_module('training')
+        
     # Параметры прунинга nni
     config_list = [
         {
@@ -1028,23 +1083,27 @@ def main(param):
     # Кастыль для сегментации в офе
     if config.model.type_save_load == "interface":
         model.backbone_hooks._attach_hooks()
-    # Кастыль для сегментации в офе
-    if config.model.type_save_load == "interface":
-        model.backbone_hooks._attach_hooks()
     model = model.to(device)
     traced_optimizer = nni.trace(torch.optim.Adam)(model.parameters())
 
+
+    
+    
     # Запоминание размерности слоя до прунинга
-    do = posle = 0
     for name in get_stract(model):
-        if name[0].split(".weight")[0] == config_list[0]["op_names"][0]:
+        if name[0] == param.name_sloi:
             do = name[2]
+    if param.algoritm == "delete":
+        pruning_mask(model, None, do, param, config)
+        return 0
+    
+    
     # Выбор алгоритма прунинга
     pruner = None
     if param.algoritm == "TaylorFOWeight":
         m = copy.deepcopy(model)
         pruner = TaylorFOWeightPruner(
-            model,
+            m,
             config_list,
             trainer.retrainer,
             traced_optimizer,
@@ -1057,6 +1116,7 @@ def main(param):
     # Запуск прунинга от nni
     model, masks = pruner.compress()
     pruner._unwrap_model()
+
     # print(torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0])
     # print(masks[list(masks.keys())[0]]['weight'].shape[0])
     # print(torch.nonzero(torch.sum(masks[list(masks.keys())[0]]['weight'],dim = (1,2,3))).shape[0] / masks[list(masks.keys())[0]]['weight'].shape[0])
@@ -1078,28 +1138,28 @@ def main(param):
         model, masks = pruner.compress()
         pruner._unwrap_model()
 
-    type_pruning = ""
-    if mask == None:
-        # Обрезка сети на основе маски от nni
-        try:
-            # Идеальная обрезка (только связанных слоёв)
-            pruning_type(
-                model, masks, do, param, config_list, config, type_pruning="defolt"
-            )
-        except:
-            try:
-                # Обрезка по особенностям ofa
-                pruning_type(
-                    model, masks, do, param, config_list, config, type_pruning="ofa"
-                )
-            except:
-                # Крайне плохая, но точно работающая обрезка
-                pruning_type(
-                    model, masks, do, param, config_list, config, type_pruning="total"
-                )
+    # type_pruning = ""
+    # if mask == None:
+    #     # Обрезка сети на основе маски от nni
+    #     try:
+    #         # Идеальная обрезка (только связанных слоёв)
+    #         pruning_type(
+    #             model, masks, do, param, config_list, config, type_pruning="defolt"
+    #         )
+    #     except:
+    #         try:
+    #             # Обрезка по особенностям ofa
+    #             pruning_type(
+    #                 model, masks, do, param, config_list, config, type_pruning="ofa"
+    #             )
+    #         except:
+    #             # Крайне плохая, но точно работающая обрезка
+    #             pruning_type(
+    #                 model, masks, do, param, config_list, config, type_pruning="total"
+    #             )
 
-    elif mask == "mask":
-        pruning_mask(model, masks, do, param, config_list, config)
+    # elif mask == "mask":
+    pruning_mask(model, masks, do, param, config)
 
 
 if __name__ == "__main__":

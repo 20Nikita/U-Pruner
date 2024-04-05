@@ -197,7 +197,9 @@ def main():
             yaml.dump(config.dict(), file)
         p = Process(target=potok, args=["config.yaml"])
         p.start()
-        dpg.configure_item("start", show=False)
+        # dpg.configure_item("start", show=False)
+        dpg.set_value('head.path.modelName', config.path.modelName)
+        dpg.set_value('head.path.exp_save', config.path.exp_save)
         dpg.set_value("tab_bar", "shov_logs")
 
     def reset_log(sender, app_data, user_data):
@@ -241,7 +243,10 @@ def main():
                         )
             with dpg.tree_node(label=f"Данные по итерациям", default_open=False):
                 fils = glob.glob(os.path.join(exp_save, model_name, "*.csv"))
-                for i in range(len(fils)):
+                ind = []
+                for i in fils:
+                    ind.append(i.split('it')[-1].split('.')[0])
+                for i in ind:
                     with dpg.tree_node(label=f"Итерация {i}", default_open=False):
                         df = pd.read_csv(
                             os.path.join(
@@ -278,6 +283,9 @@ def main():
                                         dpg.add_bar_series(
                                             [i], [df["acc"].values[i]], weight=1
                                         )
+        if dpg.get_value("head.recurs"):
+            time.sleep(5*60)
+            reset_log(sender, app_data, user_data)
 
     def graf(sender, app_data, user_data):
         from torch import load
@@ -999,7 +1007,9 @@ def main():
                                     callback=select_direct_model,
                                     user_data="head.path.exp_save",
                                 )
-                dpg.add_button(label="Обновить", callback=reset_log)
+                with dpg.group(horizontal=True):
+                    dpg.add_button(label="Обновить", callback=reset_log)
+                    dpg.add_checkbox(label="Автоматически", callback=_log, tag="head.recurs")
                 with dpg.group(tag="Mstatistica"):
                     pass
                 with dpg.group(tag="statistica"):

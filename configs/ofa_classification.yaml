@@ -1,0 +1,83 @@
+algorithm: My_pruning
+class_name:
+- timm.layers.norm_act
+dataset:
+  annotation_name: data.csv
+  annotation_name_train: null
+  annotation_name_val: null
+  annotation_path: /workspace/db_labs/paradigma/ImageNette
+  num_classes: 10
+mask:
+  sours_mask: 
+  type: mask
+model:
+  anchors: null
+  aspect_ratios: null
+  feature_maps_h: null
+  feature_maps_w: null
+  gpu: 9
+  name_resurs: ofa_class
+  path_to_resurs: /workspace/prj/Pruning/models
+  size:
+  - 224
+  - 224
+  type_save_load: interface
+my_pruning:
+  P: 0.9999
+  alf: 2
+  algoritm: L2Norm
+  cart:
+  - 9
+  - 9
+  - 9
+  delta_crop: 0.10000000149011612
+  iskl: []
+  resize_alf: false
+  restart:
+    load: /workspace/prj/Pruning/snp/ofa_classification/classification/classification_it_218_acc_0.724_size_0.031.pth
+    start_iteration: 219
+nni_pruning:
+  P: 0.5
+  gpu: 0
+  total_iteration: 10
+  training: true
+path:
+  exp_save: /workspace/prj/Pruning/snp/ofa_classification
+  modelName: classification
+retraining:
+  dataLoader:
+    batch_size_t: 80
+    batch_size_v: 80
+    drop_last_t: true
+    drop_last_v: true
+    num_workers_t: 2
+    num_workers_v: 2
+    pin_memory_t: true
+    pin_memory_v: true
+    shuffle_t: true
+    shuffle_v: true
+  is_self_traner: false
+  lr: 1.0e-05
+  num_epochs: 1
+  self_traner: ''
+task:
+  detection: null
+  loss: null
+  metrics: null
+  type: classification
+training:
+  dataLoader:
+    batch_size_t: 200
+    batch_size_v: 200
+    drop_last_t: true
+    drop_last_v: true
+    num_workers_t: 2
+    num_workers_v: 2
+    pin_memory_t: true
+    pin_memory_v: true
+    shuffle_t: true
+    shuffle_v: true
+  is_self_traner: false
+  lr: 1.0e-05
+  num_epochs: 10
+  self_traner: ''

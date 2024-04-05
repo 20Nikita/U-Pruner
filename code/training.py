@@ -23,9 +23,35 @@ size = config.model.size
 annotation_path = config.dataset.annotation_path
 annotation_name = config.dataset.annotation_name
 
-segmentation_criterion = nn.BCEWithLogitsLoss()
+
 classification_criterion = nn.CrossEntropyLoss()
 detection_criterion = detect.Loss
+loss = config.task.loss
+
+class CustomBCELoss(nn.Module):
+    """
+    input, target: [batch, channels, height, width] 
+    """
+    def __init__(self, ignore_index) -> None:
+        super().__init__()
+        self.ignore_index = ignore_index
+        self.eps = 1e-7
+
+    def forward(self, input, target):
+        if self.ignore_index is not None:
+            mask = torch.arange(input.size(1)) != self.ignore_index
+            input = input[:, mask]
+            target = target[:, mask]
+        loss = -(
+            target * torch.log(input + self.eps)
+            + (1 - target) * torch.log(1 - input + self.eps)
+        )
+        return loss.mean()
+
+if loss == "CustomBCELoss":
+    segmentation_criterion = CustomBCELoss(ignore_index = None)
+else:
+    segmentation_criterion = nn.BCEWithLogitsLoss()
 
 batch_size_t = config.retraining.dataLoader.batch_size_t
 num_workers_t = config.retraining.dataLoader.num_workers_t
@@ -50,6 +76,8 @@ tdrop_last_v = config.training.dataLoader.drop_last_v
 tshuffle_v = config.training.dataLoader.shuffle_v
 
 task_tupe = config.task.type
+metrics = config.task.metrics
+
 if annotation_name == None:
     annotation_train = config.dataset.annotation_name_train
     annotation_val = config.dataset.annotation_name_val
@@ -172,6 +200,7 @@ def retrainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
         fil=fil,
         task_tupe=task_tupe,
         ssd=ssd,
+        Metrics = metrics,
     )
     mi = mass[2].index(min(mass[2]))
     ma = mass[1].index(max(mass[1]))
@@ -197,6 +226,7 @@ def trainer(model, optimizer, criterion, epoch=0, num_epochs=1, ind=0):
         fil=fil,
         task_tupe=task_tupe,
         ssd=ssd,
+        Metrics = metrics,
     )
     mi = mass[2].index(min(mass[2]))
     ma = mass[1].index(max(mass[1]))
@@ -221,4 +251,5 @@ def finetuner(model):
         fil=fil,
         task_tupe=task_tupe,
         ssd=ssd,
+        Metrics = metrics,
     )
