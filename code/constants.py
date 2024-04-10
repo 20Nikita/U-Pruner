@@ -135,6 +135,5 @@ class Config(BaseModel):
 # DEFAULT_CONFIG_PATH = "configs/classification-paradigma.yaml"
 # DEFAULT_CONFIG_PATH = "configs/Wclassification_timm.yaml"
 # DEFAULT_CONFIG_PATH = "configs/Wclassification.yaml"
-DEFAULT_CONFIG_PATH = "configs/classification_TR50_Caltech256.yaml"
-# DEFAULT_CONFIG_PATH = "config.yaml"
-# DEFAULT_CONFIG_PATH = "config.yaml"
+# DEFAULT_CONFIG_PATH = "configs/classification_TR50_Caltech256.yaml"
+DEFAULT_CONFIG_PATH = "config.yaml"

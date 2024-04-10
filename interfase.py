@@ -151,6 +151,8 @@ def main():
             "retraining.dataLoader.shuffle_v"
         )
 
+        config.training.num_epochs = dpg.get_value("training.num_epochs")
+        config.training.lr = dpg.get_value("training.lr")
         config.training.dataLoader.batch_size_t = dpg.get_value(
             "training.dataLoader.batch_size_t"
         )
@@ -202,6 +204,138 @@ def main():
         dpg.set_value('head.path.modelName', config.path.modelName)
         dpg.set_value('head.path.exp_save', config.path.exp_save)
         dpg.set_value("tab_bar", "shov_logs")
+
+    def set_train_log(sender, app_data, user_data):
+        config = yaml.safe_load(open('config.yaml', encoding='utf-8'))
+        log = os.path.join(config['path']['exp_save'], "log.txt")
+        data = open(log, encoding='utf-8').read()
+        dpg.set_value("train.log",data)
+
+
+
+    def traning(sender, app_data, user_data):
+        config = Config()
+        config.task.type = retasc[dpg.get_value("trainig.task.type")]
+        config.path.exp_save = dpg.get_value("trainig.path.exp_save")
+        config.model.type_save_load = dpg.get_value("trainig.model.type_save_load")
+        config.model.path_to_resurs = dpg.get_value("trainig.model.path_to_resurs")
+        config.model.name_resurs = dpg.get_value("trainig.model.name_resurs")
+        config.model.size = [
+            int(dpg.get_value("trainig.model.size[0]")),
+            int(dpg.get_value("trainig.model.size[1]")),
+        ]
+        config.model.gpu = dpg.get_value("trainig.model.gpu")
+        config.dataset.num_classes = dpg.get_value("trainig.dataset.num_classes")
+        config.dataset.annotation_path = dpg.get_value("trainig.dataset.annotation_path")
+        config.dataset.annotation_name = dpg.get_value("trainig.dataset.annotation_name")
+        config.training.num_epochs = dpg.get_value("trainig.training.num_epochs")
+        config.training.lr = dpg.get_value("trainig.training.lr")
+
+
+        config.training.dataLoader.batch_size_t = dpg.get_value(
+            "trainig.training.dataLoader.batch_size_t"
+        )
+        config.training.dataLoader.num_workers_t = dpg.get_value(
+            "trainig.training.dataLoader.num_workers_t"
+        )
+        config.training.dataLoader.pin_memory_t = dpg.get_value(
+            "trainig.training.dataLoader.pin_memory_t"
+        )
+        config.training.dataLoader.drop_last_t = dpg.get_value(
+            "trainig.training.dataLoader.drop_last_t"
+        )
+        config.training.dataLoader.shuffle_t = dpg.get_value(
+            "trainig.training.dataLoader.shuffle_t"
+        )
+        config.training.dataLoader.batch_size_v = dpg.get_value(
+            "trainig.training.dataLoader.batch_size_v"
+        )
+        config.training.dataLoader.num_workers_v = dpg.get_value(
+            "trainig.training.dataLoader.num_workers_v"
+        )
+        config.training.dataLoader.pin_memory_v = dpg.get_value(
+            "trainig.training.dataLoader.pin_memory_v"
+        )
+        config.training.dataLoader.drop_last_v = dpg.get_value(
+            "trainig.training.dataLoader.drop_last_v"
+        )
+        config.training.dataLoader.shuffle_v = dpg.get_value(
+            "trainig.training.dataLoader.shuffle_v"
+        )
+        
+
+        with open("config.yaml", "w") as file:
+            yaml.dump(config.dict(), file)
+        import sys
+        sys.path.append('code')
+        import os
+        os.environ["CUDA_VISIBLE_DEVICES"] = "{}".format(config.model.gpu)
+        if not os.path.exists(config.path.exp_save):
+            os.makedirs(config.path.exp_save)
+        import torch
+        import torch.optim as optim
+        import torch.nn as nn
+        from torch.utils.data import DataLoader
+        import code.dataset as Dataset
+        from code.train_nni import train_model
+        device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+        sys.path.append(config.model.path_to_resurs)
+        model = torch.load(
+            os.path.join(
+                config.model.path_to_resurs, f"{config.model.name_resurs}.pth"
+            ),
+            map_location=device,
+        )
+
+        N_class = config.dataset.num_classes
+        annotation_path = config.dataset.annotation_path
+        annotation_name = config.dataset.annotation_name
+
+        segmentation_criterion = nn.CrossEntropyLoss()
+        segmentation_criterion = segmentation_criterion.to(device)
+        batch_size_t  = config.training.dataLoader.batch_size_t
+        num_workers_t = config.training.dataLoader.num_workers_t
+        pin_memory_t  = config.training.dataLoader.pin_memory_t
+        drop_last_t   = config.training.dataLoader.drop_last_t
+        shuffle_t     = config.training.dataLoader.shuffle_t
+        batch_size_v  = config.training.dataLoader.batch_size_v
+        num_workers_v = config.training.dataLoader.num_workers_v
+        pin_memory_v  = config.training.dataLoader.pin_memory_v
+        drop_last_v   = config.training.dataLoader.drop_last_v
+        shuffle_v     = config.training.dataLoader.shuffle_v
+        lr_training   = config.training.lr
+        N_class       = config.dataset.num_classes
+        task_tupe     = config.task.type
+        optimizer = optim.Adam(model.parameters(), lr=lr_training)
+        trainset, valset = Dataset.generic_set_one_annotation(annotation_path,annotation_name, None)
+        train_dataloader = DataLoader(trainset, batch_size=batch_size_t, num_workers=num_workers_t, pin_memory=pin_memory_t, drop_last=drop_last_t, shuffle=shuffle_t)
+        val_dataloader = DataLoader(valset, batch_size=batch_size_v, num_workers=num_workers_v, pin_memory=pin_memory_v, drop_last=drop_last_v, shuffle=shuffle_v)
+        rezim = []
+        if dpg.get_value("trainig.T"):
+            rezim.append('T')
+        if dpg.get_value("trainig.V"):
+            rezim.append('V')
+        
+        model, _, _, pihati, mass, time_elapsed = train_model(model, 
+                        segmentation_criterion, 
+                        optimizer, 
+                        train_dataloader, 
+                        val_dataloader, 
+                        batch_size_t, 
+                        batch_size_v, 
+                        num_epochs=config.training.num_epochs,
+                        N_class = N_class,
+                        rezim = rezim,
+                        task_tupe=task_tupe,
+                        fil = os.path.join(config.path.exp_save, "log.txt")
+                        )
+        mi = mass[2].index(min(mass[2]))
+        ma = mass[1].index(max(mass[1]))
+        print(mass[2][mi], mass[1][ma])
+        torch.save(model,os.path.join(config.path.exp_save, f"{config.model.name_resurs}_{mass[1][ma]}.pth"))
+        log = os.path.join(config.path.exp_save, "log.txt")
+        data = open(log, encoding='utf-8').read()
+        dpg.set_value("train.log",data)
 
     def reset_log(sender, app_data, user_data):
         exp_save = dpg.get_value("head.path.exp_save")
@@ -437,7 +571,6 @@ def main():
             dpg.add_text("Готово")
 
     with dpg.window(tag="main", menubar=True):
-
         with dpg.menu_bar():
             with dpg.menu(label="Tools"):
                 dpg.add_menu_item(
@@ -1114,8 +1247,287 @@ def main():
                     pass
                 with dpg.group(tag="onnx"):
                     pass
+# !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
             with dpg.tab(label="Обучение"):
-                pass
+                with dpg.tree_node(
+                    label="Основные параметры", default_open=True, tag="trainig.tree_node_1"
+                ):
+                    with dpg.group(horizontal=True):
+                        with dpg.group():
+                            dpg.add_text("Задача компьютерного зрения")
+                            dpg.add_text("Путь к сохраняемым данным")
+                            dpg.add_text("Видеокарта обучения")
+                        with dpg.group():
+                            dpg.add_radio_button(
+                                ("Классификация", "Сегментация", "Детекция"),
+                                callback=_radio,
+                                horizontal=True,
+                                tag="trainig.task.type",
+                                default_value="Классификация",
+                            )
+                            _help(helps[0])
+                            with dpg.group(horizontal=True):
+                                dpg.add_input_text(
+                                    default_value=os.path.join(
+                                        "snp",
+                                        time.strftime(
+                                            "%d_%m_%Y_%H_%M",
+                                            time.localtime(time.time()),
+                                        ),
+                                    ),
+                                    width=len_input_text,
+                                    callback=_log_name,
+                                    no_spaces=True,
+                                    tag="trainig.path.exp_save",
+                                )
+                                dpg.add_button(
+                                    label="Найти",
+                                    callback=select_direct_model,
+                                    user_data="trainig.path.exp_save",
+                                )
+                            dpg.add_input_int(
+                                callback=_log,
+                                width=len_input_int,
+                                default_value=0,
+                                min_value=0,
+                                min_clamped=True,
+                                tag="trainig.model.gpu",
+                            )
+                with dpg.tree_node(
+                    label="Модель", default_open=True, tag="trainig.tree_node_2"
+                ):
+                    with dpg.group(horizontal=True):
+                        with dpg.group():
+                            dpg.add_text("Тип модели")
+                            dpg.add_text("Название модели")
+                            dpg.add_text("Путь к мадели")
+                            dpg.add_text("Размер входа")
+                        with dpg.group():
+                            dpg.add_radio_button(
+                                ("pth", "interface"),
+                                callback=_radio,
+                                horizontal=True,
+                                tag="trainig.model.type_save_load",
+                                default_value="pth",
+                            )
+                            _help(helps[2])
+                            dpg.add_input_text(
+                                default_value="timm_resnet18",
+                                callback=_log,
+                                width=len_input_text,
+                                no_spaces=True,
+                                tag="trainig.model.name_resurs",
+                            )
+                            _help(helps[3])
+                            with dpg.group(horizontal=True):
+                                dpg.add_input_text(
+                                    default_value="models",
+                                    width=len_input_text,
+                                    callback=_log,
+                                    no_spaces=True,
+                                    tag="trainig.model.path_to_resurs",
+                                )
+                                _help(helps[4])
+                                dpg.add_button(
+                                    label="Найти",
+                                    callback=select_and_fils,
+                                    user_data=[
+                                        "trainig.model.path_to_resurs",
+                                        "trainig.model.name_resurs",
+                                    ],
+                                )
+                            with dpg.group(horizontal=True):
+                                dpg.add_input_text(
+                                    callback=_log,
+                                    default_value="224",
+                                    scientific=True,
+                                    width=len_input_min_text,
+                                    tag="trainig.model.size[0]",
+                                )
+                                dpg.add_text(":")
+                                dpg.add_input_text(
+                                    callback=_log,
+                                    default_value="224",
+                                    scientific=True,
+                                    width=len_input_min_text,
+                                    tag="trainig.model.size[1]",
+                                )
+                                _help(helps[5])
+                with dpg.tree_node(
+                    label="Набор данных", default_open=True, tag="trainig.tree_node_3"
+                ):
+                    with dpg.group(horizontal=True):
+                        with dpg.group():
+                            dpg.add_text("Количество классов")
+                            dpg.add_text("Название csv файла")
+                            dpg.add_text("Путь к данным")
+                        with dpg.group():
+                            dpg.add_input_int(
+                                callback=_log,
+                                width=len_input_int,
+                                default_value=10,
+                                min_value=1,
+                                min_clamped=True,
+                                tag="trainig.dataset.num_classes",
+                            )
+                            dpg.add_input_text(
+                                default_value="data.csv",
+                                callback=_log,
+                                width=len_input_text,
+                                no_spaces=True,
+                                tag="trainig.dataset.annotation_name",
+                            )
+                            with dpg.group(horizontal=True):
+                                with dpg.group(tag="trainig.Data"):
+                                    dpg.add_input_text(
+                                        default_value=os.path.join(
+                                            "D:/", "db", "ImageNette_10"
+                                        ),
+                                        width=len_input_text,
+                                        callback=_log,
+                                        no_spaces=True,
+                                        tag="trainig.dataset.annotation_path",
+                                    )
+                                dpg.add_button(
+                                    label="Найти",
+                                    callback=select_and_fils_2,
+                                    user_data=[
+                                        "trainig.dataset.annotation_path",
+                                        "trainig.dataset.annotation_name",
+                                    ],
+                                )
+                with dpg.tree_node(
+                    label="Конфигурация обучения",
+                    default_open=True,
+                    tag="trainig.tree_node_4",
+                ):
+                    with dpg.group(horizontal=True):
+                        with dpg.group():
+                            dpg.add_text("Количество эпох")
+                            dpg.add_text("learning rate")
+                        with dpg.group():
+                            dpg.add_input_int(
+                                callback=_log,
+                                width=len_input_int,
+                                default_value=1,
+                                min_value=1,
+                                min_clamped=True,
+                                tag="trainig.training.num_epochs",
+                            )
+                            dpg.add_input_float(
+                                callback=_log,
+                                width=len_input_flost,
+                                default_value=0.00001,
+                                format="%.8f",
+                                min_value=0,
+                                min_clamped=True,
+                                tag="trainig.training.lr",
+                            )
+                    with dpg.group(horizontal=True):
+                        dpg.add_checkbox(label="Тренеровка", callback=_log, tag="trainig.T", default_value=True)
+                        dpg.add_checkbox(label="Валидация", callback=_log, tag="trainig.V", default_value=True)
+                    with dpg.tree_node(label="тренеровка", default_open=False):
+                        with dpg.group(horizontal=True):
+                            with dpg.group():
+                                dpg.add_text("Размер батча")
+                                dpg.add_text("num_workers")
+                                dpg.add_text("pin_memory")
+                                dpg.add_text("drop_last")
+                                dpg.add_text("shuffle")
+                            with dpg.group():
+                                dpg.add_input_int(
+                                    callback=_log,
+                                    width=len_input_int,
+                                    default_value=10,
+                                    min_value=1,
+                                    min_clamped=True,
+                                    tag="trainig.training.dataLoader.batch_size_t",
+                                )
+                                dpg.add_input_int(
+                                    callback=_log,
+                                    width=len_input_int,
+                                    default_value=1,
+                                    min_value=0,
+                                    min_clamped=True,
+                                    tag="trainig.training.dataLoader.num_workers_t",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.pin_memory_t",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.drop_last_t",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.shuffle_t",
+                                )
+                    with dpg.tree_node(label="валидация", default_open=False):
+                        with dpg.group(horizontal=True):
+                            with dpg.group():
+                                dpg.add_text("Размер батча")
+                                dpg.add_text("num_workers")
+                                dpg.add_text("pin_memory")
+                                dpg.add_text("drop_last")
+                                dpg.add_text("shuffle")
+                            with dpg.group():
+                                dpg.add_input_int(
+                                    callback=_log,
+                                    width=len_input_int,
+                                    default_value=10,
+                                    min_value=1,
+                                    min_clamped=True,
+                                    tag="trainig.training.dataLoader.batch_size_v",
+                                )
+                                dpg.add_input_int(
+                                    callback=_log,
+                                    width=len_input_int,
+                                    default_value=1,
+                                    min_value=0,
+                                    min_clamped=True,
+                                    tag="trainig.training.dataLoader.num_workers_v",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.pin_memory_v",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.drop_last_v",
+                                )
+                                dpg.add_checkbox(
+                                    callback=_log,
+                                    default_value=True,
+                                    tag="trainig.training.dataLoader.shuffle_v",
+                                )
+                with dpg.table(
+                    tag="trainig.Goods",
+                    header_row=False,
+                    borders_innerH=False,
+                    borders_outerH=False,
+                    borders_innerV=False,
+                    borders_outerV=False,
+                ):
+                    dpg.add_table_column()
+                    dpg.add_table_column()
+                    dpg.add_table_column()
+                    with dpg.table_row():
+                        dpg.add_table_cell()
+                        dpg.add_button(
+                            label="Старт",
+                            callback=traning,
+                            width=300,
+                            height=100,
+                            tag="trainig.start",
+                        )
+                with dpg.group(horizontal=True):
+                    dpg.add_input_text(multiline=True, default_value='', height=600, width=250, callback=_log, tab_input=True, tag='train.log')
     # dpg.show_item_registry()
     dpg.create_viewport(title="U-Pruner")
     dpg.setup_dearpygui()
