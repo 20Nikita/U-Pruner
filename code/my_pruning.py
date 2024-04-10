@@ -7,7 +7,7 @@ def potok(
     #     print(self_ind, name_sloi)
     return subprocess.call(
         [
-            "python3",
+            "python",
             "code/my_pruning_pabotnik.py",
             "--self_ind",
             str(self_ind),

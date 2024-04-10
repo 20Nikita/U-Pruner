@@ -8,9 +8,9 @@ class_name: ['timm.layers.norm_act']
 model:
     type_save_load: pth # interface - загрузка и сохранение в интерфейс, pth - загрузка модели и сохранение в формате pth.
     path_to_resurs: models # Путь к каталогу с interface.pt если type_save_load = interface. К model.pth если type_save_load = pth
-    name_resurs: mobilenetv2_100 # Имя файла с расширением .pth
+    name_resurs: mobilenetv3_large_100 # Имя файла с расширением .pth
     size: [224,224]
-    gpu: 9 # карта для main процесса прунинга
+    gpu: 0 # карта для main процесса прунинга
     anchors:
     feature_maps_w:
     feature_maps_h:
@@ -40,13 +40,13 @@ retraining:
     lr: 0.00001
     dataLoader:
         batch_size_t: 10
-        num_workers_t: 4
+        num_workers_t: 0
         pin_memory_t: True
         drop_last_t: True
         shuffle_t: True
 
         batch_size_v: 10
-        num_workers_v: 4
+        num_workers_v: 0
         pin_memory_v: True
         drop_last_v: True
         shuffle_v: False
@@ -58,13 +58,13 @@ training:
     lr: 0.00001
     dataLoader:
         batch_size_t: 80
-        num_workers_t: 4
+        num_workers_t: 0
         pin_memory_t: True
         drop_last_t: True
         shuffle_t: True
 
         batch_size_v: 80
-        num_workers_v: 4
+        num_workers_v: 0
         pin_memory_v: True
         drop_last_v: True
         shuffle_v: False
@@ -76,12 +76,13 @@ my_pruning:
     P: 0.999                      # Сколько отрезать от сети (Пока основывается на ptflops.get_model_complexity_info)
     cart: [0,0]                   # На каких картах обучать [0,0,1,1,1,2] (для паралельного обучения, запустится 6 независимых тренировок на соответствующих картах)
     iskl: []                      # Название слоёв, которые не нужно обрезать [input_stem.0.conv,blocks.1.conv2.conv]
-    algoritm: TaylorFOWeight      # TaylorFOWeight, L2Norm. Прунинг в основе.TaylorFOWeight в 2 раза дольще L2Norm но немного лучше.
+    top_n: 10
+    algoritm: L2Norm      # TaylorFOWeight, L2Norm. Прунинг в основе.TaylorFOWeight в 2 раза дольще L2Norm но немного лучше.
     resize_alf: False             # Обрезать всю сеть до кратности alf (Если False то могут остатся не кратные свертки при условии что их обрезка сильно портит качество)
     delta_crop: 0.1               # Сколько % от текущей свертки резать за 1 итерацию 0.1->(100*100*7*7)->(90->100*7*7)
     restart:
         start_iteration: 0                                      # Итерация с которой продолжить работу (default: 0)
-        load: snp/MobileNetV2/orig_model.pth  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth")
+        load:  # Путь к модели (default: exp_save + "/" + model_name + "/" + "orig_model.pth")
 #==================== nni_pruning ==============================|
 nni_pruning:
     P: 0.5                         # Сколько отрезать от сети (Пока основывается на ptflops.get_model_complexity_info)

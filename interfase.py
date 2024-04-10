@@ -34,7 +34,7 @@ def main():
 
     dpg.create_context()
     with dpg.font_registry():
-        with dpg.font(f"segoeui.ttf", 50, default_font=True, tag="Default font") as f:
+        with dpg.font(f"fonts/segoeui.ttf", 50, default_font=True, tag="Default font") as f:
             dpg.add_font_range_hint(dpg.mvFontRangeHint_Cyrillic)
 
     dpg.bind_font("Default font")
