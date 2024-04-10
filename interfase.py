@@ -185,6 +185,7 @@ def main():
         config.my_pruning.alf = dpg.get_value("my_pruning.alf")
         config.my_pruning.P = dpg.get_value("my_pruning.P")
         config.my_pruning.cart = literal_eval(dpg.get_value("my_pruning.cart"))
+        config.my_pruning.top_n = dpg.get_value("my_pruning.top_n")
         config.my_pruning.iskl = literal_eval(dpg.get_value("my_pruning.iskl"))
         config.my_pruning.algoritm = dpg.get_value("my_pruning.algoritm")
         config.my_pruning.resize_alf = dpg.get_value("my_pruning.resize_alf")
@@ -850,6 +851,7 @@ def main():
                             dpg.add_text("Кратность каналов")
                             dpg.add_text("Коэфициент сжатия")
                             dpg.add_text("Карты")
+                            dpg.add_text("Минимум проверяемых блоков")
                             dpg.add_text("Исключения")
                             dpg.add_text("Алгоритм")
                             dpg.add_text("resize_alf")
@@ -883,6 +885,16 @@ def main():
                                 callback=_log,
                                 no_spaces=True,
                                 tag="my_pruning.cart",
+                            )
+                            _help(helps[help_i])
+                            help_i += 1
+                            dpg.add_input_int(
+                                callback=_log,
+                                width=len_input_int,
+                                default_value=1,
+                                min_value=1,
+                                min_clamped=True,
+                                tag="my_pruning.top_n",
                             )
                             _help(helps[help_i])
                             help_i += 1
